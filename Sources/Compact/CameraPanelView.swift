@@ -91,10 +91,18 @@ struct CameraPanelView: View {
         if camera.micMeterOn {
             Group {
                 if camera.micDenied {
-                    Text("Microphone access is off. Turn it on in System Settings → Privacy & Security → Microphone.")
-                        .font(.caption)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.white)
+                    VStack(spacing: 4) {
+                        Text("Microphone access is off. Turn it on in System Settings → Privacy & Security → Microphone.")
+                            .font(.caption)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.white)
+                        Button("Open System Settings") {
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                        .controlSize(.small)
+                    }
                 } else {
                     AudioMeterView(level: camera.audioLevel)
                 }

@@ -7,6 +7,7 @@ struct SettingsView: View {
     let store: SettingsStore
     let camera: CameraController
     let recorder: VlogRecorder
+    let hotkey: GlobalHotkey
     var onIconChanged: () -> Void
     var onWindowModeChanged: () -> Void
 
@@ -26,6 +27,10 @@ struct SettingsView: View {
                     Text(loginError).font(.caption).foregroundStyle(.red)
                 }
                 LabeledContent("Shortcut") { ShortcutRecorderView(hotkey: binding(\.hotkey)) }
+                if hotkey.registrationFailed, store.settings.hotkey != nil {
+                    Text("That shortcut is already used by another app. Try a different one.")
+                        .font(.caption).foregroundStyle(.red)
+                }
                 LabeledContent("Menu bar icon") {
                     HStack(spacing: 6) {
                         ForEach(MenuBarIcon.allCases, id: \.self) { icon in
@@ -50,6 +55,7 @@ struct SettingsView: View {
                     set: { camera.selectCamera(id: $0) })) {
                     ForEach(camera.cameras, id: \.uniqueID) { Text($0.localizedName).tag($0.uniqueID) }
                 }
+                .disabled(recorder.state.isActive)
                 Picker("Microphone", selection: Binding(
                     get: { store.settings.microphoneID ?? AVDefault.microphone(camera) },
                     set: { camera.selectMicrophone(id: $0) })) {
@@ -89,7 +95,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 440, height: 620)
+        .frame(width: 440, height: SettingsWindowController.contentHeight)
         .onAppear {
             camera.refreshDevices()
             launchAtLogin = SMAppService.mainApp.status == .enabled

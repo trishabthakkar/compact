@@ -49,6 +49,13 @@ final class StatusItemController: NSObject {
         settings.target = self
         menu.addItem(settings)
         menu.addItem(.separator())
+        let vlogs = NSMenuItem(title: "Open Vlogs Folder", action: #selector(openVlogs), keyEquivalent: "")
+        vlogs.target = self
+        menu.addItem(vlogs)
+        let snaps = NSMenuItem(title: "Open Snaps Folder", action: #selector(openSnaps), keyEquivalent: "")
+        snaps.target = self
+        menu.addItem(snaps)
+        menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Compact", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
         statusItem.button?.performClick(nil)
@@ -56,4 +63,13 @@ final class StatusItemController: NSObject {
     }
 
     @objc private func openSettings() { onOpenSettings?() }
+    @objc private func openVlogs() { openFolder(.vlog) }
+    @objc private func openSnaps() { openFolder(.snap) }
+
+    /// Folders are created on first save, so make sure it exists before opening.
+    private func openFolder(_ kind: MediaKind) {
+        let folder = MediaLocation.folder(for: kind, home: FileManager.default.homeDirectoryForCurrentUser)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(folder)
+    }
 }

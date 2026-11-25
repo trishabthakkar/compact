@@ -20,7 +20,32 @@ final class VlogRecorder {
 
     init(camera: CameraController) { self.camera = camera }
 
+    @ObservationIgnored private var isStarting = false
+
     func start() {
+        guard !state.isActive, !isStarting else { return }
+        isStarting = true
+        Task { @MainActor in
+            defer { isStarting = false }
+            // Resolve mic permission first so the audio input is attached before recording begins.
+            if !(await camera.ensureMicAccess()), !confirmRecordWithoutSound() { return }
+            begin()
+        }
+    }
+
+    /// Returns true if the user chose to record without sound.
+    private func confirmRecordWithoutSound() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "No microphone access"
+        alert.informativeText = "Compact can't use your microphone, so this vlog will have no sound. You can turn it on in System Settings → Privacy & Security → Microphone."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Record Without Sound")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate()
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    private func begin() {
         guard !state.isActive else { return }
         let url: URL
         do {

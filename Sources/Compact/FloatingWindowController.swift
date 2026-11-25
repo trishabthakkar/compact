@@ -66,7 +66,11 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
         } else {
             // Keep the top-left corner fixed when resizing in place.
             let old = panel.frame
-            panel.setFrame(CGRect(x: old.minX, y: old.maxY - size.height, width: size.width, height: size.height), display: true)
+            let proposed = CGPoint(x: old.minX, y: old.maxY - size.height)
+            // Clamp into the visible frame so a bigger size can't push the window off-screen.
+            let origin = windowOrigin(position: .remembered, windowSize: size,
+                                      visibleFrame: (panel.screen ?? screen).visibleFrame, remembered: proposed)
+            panel.setFrame(CGRect(origin: origin, size: size), display: true)
         }
         panel.invalidateShadow()
     }

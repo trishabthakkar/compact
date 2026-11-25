@@ -1,4 +1,5 @@
 import AppKit
+import Observation
 import Carbon.HIToolbox
 import SwiftUI
 import CompactCore
@@ -9,20 +10,25 @@ private func hotKeyHandler(_: EventHandlerCallRef?, _ event: EventRef?, _: Unsaf
 }
 
 /// Registers one system-wide hotkey via Carbon. The event handler is installed once.
-@MainActor
+@MainActor @Observable
 final class GlobalHotkey {
-    static weak var shared: GlobalHotkey?
+    @ObservationIgnored nonisolated(unsafe) static weak var shared: GlobalHotkey?
 
-    private var ref: EventHotKeyRef?
-    private var handlerInstalled = false
-    private var action: (() -> Void)?
+    /// True when the last non-nil registration was refused (typically: the combo belongs to another app).
+    private(set) var registrationFailed = false
+    @ObservationIgnored private var ref: EventHotKeyRef?
+    @ObservationIgnored private var handlerInstalled = false
+    @ObservationIgnored private var action: (() -> Void)?
 
     init() { Self.shared = self }
 
-    func register(_ hotkey: Hotkey?, action: @escaping () -> Void) {
+    /// Returns false (and sets `registrationFailed`) if the system refuses the combination.
+    @discardableResult
+    func register(_ hotkey: Hotkey?, action: @escaping () -> Void) -> Bool {
         if let ref { UnregisterEventHotKey(ref); self.ref = nil }
         self.action = action
-        guard let hotkey else { return }
+        registrationFailed = false
+        guard let hotkey else { return true }
         if !handlerInstalled {
             var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
             InstallEventHandler(GetApplicationEventTarget(), hotKeyHandler, 1, &spec, nil, nil)
@@ -31,7 +37,8 @@ final class GlobalHotkey {
         let id = EventHotKeyID(signature: 0x434D5043 /* 'CMPC' */, id: 1)
         var newRef: EventHotKeyRef?
         let status = RegisterEventHotKey(hotkey.keyCode, hotkey.modifiers, id, GetApplicationEventTarget(), 0, &newRef)
-        if status == noErr { ref = newRef }
+        if status == noErr { ref = newRef } else { registrationFailed = true }
+        return status == noErr
     }
 
     fileprivate func fire() { action?() }

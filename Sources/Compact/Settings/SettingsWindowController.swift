@@ -3,6 +3,8 @@ import SwiftUI
 
 @MainActor
 final class SettingsWindowController {
+    /// Shared with SettingsView's frame so the window never clips a section.
+    static let contentHeight: CGFloat = 720
     private var window: NSWindow?
     private let makeView: () -> SettingsView
 
@@ -10,7 +12,7 @@ final class SettingsWindowController {
 
     func show() {
         if window == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 560),
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: Self.contentHeight),
                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
             w.title = "Compact Settings"
             w.isReleasedWhenClosed = false

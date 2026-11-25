@@ -16,16 +16,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     private var lastHotkey: Hotkey?
     private lazy var settingsWindow = SettingsWindowController { [unowned self] in
-        SettingsView(store: store, camera: camera, recorder: recorder,
+        SettingsView(store: store, camera: camera, recorder: recorder, hotkey: hotkey,
                      onIconChanged: { [weak self] in self?.statusItem?.refreshIcon() },
                      onWindowModeChanged: { [weak self] in self?.presentation.hide() })
     }
     private var panelVisible = false
     private var cameraRunning = false
+    // Screen sleep, session switch-out and lock each make the panel effectively invisible.
+    private var screensAsleep = false
+    private var sessionInactive = false
+    private var screenLocked = false
+    private var screenAvailable: Bool { !screensAsleep && !sessionInactive && !screenLocked }
 
     /// Re-evaluated on both panel visibility and recording-state changes.
     private func updateCamera() {
-        let run = shouldRunCamera(panelVisible: panelVisible, isRecording: recorder.state.isActive)
+        let run = shouldRunCamera(panelVisible: panelVisible, isRecording: recorder.state.isActive,
+                                screenAvailable: screenAvailable)
         // Only act on changes: start() reconfigures inputs, which must not happen mid-recording.
         guard run != cameraRunning else { return }
         cameraRunning = run
@@ -45,6 +51,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.statusItem?.setRecording(state.isActive)
             self?.updateCamera()
         }
+        camera.onAccessGrantedAfterPanelClosed = { [weak self] in self?.presentation.show() }
+        observeScreenAvailability()
         statusItem = StatusItemController(store: store) { [weak self] in
             guard let self else { return }
             self.presentation.toggle(relativeTo: self.statusItem?.button)
@@ -54,6 +62,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         observeHotkey()
         notch.update(enabled: store.settings.notchTriggerEnabled)
         observeNotch()
+    }
+
+    private func observeScreenAvailability() {
+        let ws = NSWorkspace.shared.notificationCenter
+        let dc = DistributedNotificationCenter.default()
+        func watch(_ center: NotificationCenter, _ name: Notification.Name, _ apply: @escaping (AppDelegate) -> Void) {
+            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    apply(self)
+                    self.updateCamera()
+                }
+            }
+        }
+        watch(ws, NSWorkspace.screensDidSleepNotification) { $0.screensAsleep = true }
+        watch(ws, NSWorkspace.screensDidWakeNotification) { $0.screensAsleep = false }
+        watch(ws, NSWorkspace.sessionDidResignActiveNotification) { $0.sessionInactive = true }
+        watch(ws, NSWorkspace.sessionDidBecomeActiveNotification) { $0.sessionInactive = false }
+        watch(dc, Notification.Name("com.apple.screenIsLocked")) { $0.screenLocked = true }
+        watch(dc, Notification.Name("com.apple.screenIsUnlocked")) { $0.screenLocked = false }
     }
 
     private func observeNotch() {
@@ -90,9 +118,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard recorder.state.isActive else { return .terminateNow }
+        // Finish the file, but never let a stuck recorder block quitting forever.
+        var replied = false
+        let reply = {
+            guard !replied else { return }
+            replied = true
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
         Task { @MainActor in
             await recorder.stop()
-            NSApp.reply(toApplicationShouldTerminate: true)
+            reply()
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(10))
+            reply()
         }
         return .terminateLater
     }

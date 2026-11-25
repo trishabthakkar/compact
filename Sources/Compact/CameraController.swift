@@ -18,6 +18,10 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
     private(set) var micDenied = false
     private(set) var micMeterOn = false
 
+    /// Called when the user allowed camera access from the system prompt after the panel that triggered the
+    /// request was already closed by the dialog; the owner should reopen the panel.
+    @ObservationIgnored var onAccessGrantedAfterPanelClosed: (() -> Void)?
+
     @ObservationIgnored private let store: SettingsStore
     @ObservationIgnored private let queue = DispatchQueue(label: "compact.camera")
     @ObservationIgnored private var wantsRunning = false
@@ -58,6 +62,17 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
         if !micRequired.isEmpty, !micRequired.contains("vlog") { applyMic() }
     }
 
+    /// Resolves microphone authorization, showing the system prompt first if it was never asked.
+    /// Returns true when the mic may be used. Always awaited before a vlog starts so audio is wired in from frame one.
+    func ensureMicAccess() async -> Bool {
+        if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
+            _ = await AVCaptureDevice.requestAccess(for: .audio)
+        }
+        let ok = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+        micDenied = !ok
+        return ok
+    }
+
     /// Keeps the mic input attached for `reason` (e.g. "vlog") until released.
     func requireMic(_ reason: String) {
         micRequired.insert(reason)
@@ -90,14 +105,18 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
     private func applyMic() {
         microphones = Self.discoverMicrophones()
         let want = !micRequired.isEmpty && AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
-        let device = want ? preferredMicrophone() : nil
-        let meter = device != nil && micRequired.contains("meter")
+        let preferred = want ? preferredMicrophone() : nil
+        // While recording, keep whatever mic is already attached; re-resolving could swap it mid-file.
+        let keepCurrent = want && micRequired.contains("vlog")
+        let wantsMeter = micRequired.contains("meter")
         let session = session, output = audioOutput
         queue.async { [weak self] in
             guard let self else { return }
             session.beginConfiguration()
             let current = session.inputs.compactMap { $0 as? AVCaptureDeviceInput }
                 .first { $0.device.hasMediaType(.audio) }
+            let device = keepCurrent ? (current?.device ?? preferred) : preferred
+            let meter = device != nil && wantsMeter
             var attached = current != nil
             if current?.device.uniqueID != device?.uniqueID {
                 if let current { session.removeInput(current); attached = false }
@@ -179,11 +198,16 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
         refresh()
         if store.settings.showMicMeter, !micMeterOn { setMicMeter(enabled: true) }
         if AVCaptureDevice.authorizationStatus(for: .video) == .notDetermined {
-            AVCaptureDevice.requestAccess(for: .video) { [weak self] _ in
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
                 Task { @MainActor in
                     guard let self else { return }
                     self.refresh()
-                    if self.wantsRunning { self.startIfAllowed() }
+                    if self.wantsRunning {
+                        self.startIfAllowed()
+                    } else if granted {
+                        // The system dialog closed the transient popover (stop() ran): reopen it.
+                        self.onAccessGrantedAfterPanelClosed?()
+                    }
                 }
             }
             return
@@ -198,6 +222,8 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
     }
 
     func selectCamera(id: String) {
+        // Frozen while recording: swapping the video input would break the movie output.
+        guard !micRequired.contains("vlog") else { return }
         store.update { $0.cameraID = id }
         guard let device = cameras.first(where: { $0.uniqueID == id }) else { return }
         configure(with: device)
@@ -214,7 +240,7 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
                 session.beginConfiguration()
                 defer { session.commitConfiguration() }
                 guard session.canAddOutput(output) else {
-                    cont.resume(returning: "This Mac's camera can't record video while snaps are enabled.")
+                    cont.resume(returning: "Compact couldn't start recording on this camera. Try closing other apps that use the camera and record again.")
                     return
                 }
                 session.addOutput(output)
