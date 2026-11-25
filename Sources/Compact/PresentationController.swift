@@ -14,7 +14,7 @@ final class PresentationController: NSObject, NSPopoverDelegate {
     init(camera: CameraController, store: SettingsStore) {
         super.init()
         popover.behavior = .transient
-        popover.contentSize = NSSize(width: 320, height: 240)
+        popover.contentSize = NSSize(width: 320, height: 272)
         popover.contentViewController = NSHostingController(
             rootView: CameraPanelView(camera: camera, store: store))
         popover.delegate = self
@@ -28,7 +28,7 @@ final class PresentationController: NSObject, NSPopoverDelegate {
     func show() {
         guard !isVisible, let button = anchor else { return }
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         onVisibilityChange?(true)
     }
 
