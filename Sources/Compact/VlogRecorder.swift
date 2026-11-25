@@ -78,8 +78,18 @@ final class VlogRecorder {
                 Task { @MainActor in self?.finished(id: id, error: error) }
             }
             self.delegate = delegate
+            let started = await self.camera.startMovieRecording(output, to: url, delegate: delegate)
+            guard self.recordingID == id, case .recording = self.state else {
+                // Stopped while starting: end the orphaned recording; its callback is ignored.
+                if started { output.stopRecording() }
+                return
+            }
+            guard started else {
+                self.cleanup()
+                self.fail("Compact couldn't start recording. Close any other app using the camera and try again.")
+                return
+            }
             self.didStartRecording = true
-            output.startRecording(to: url, recordingDelegate: delegate)
         }
     }
 

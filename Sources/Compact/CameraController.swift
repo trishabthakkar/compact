@@ -253,6 +253,24 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
         }
     }
 
+    /// Starts recording on the session queue once the output has an active, enabled connection.
+    /// Connections can take a moment to come up after the output is added; calling
+    /// `startRecording` before then throws "No active/enabled connections". Returns false if
+    /// no connection became ready within 3 seconds (recording was not started).
+    func startMovieRecording(_ output: AVCaptureMovieFileOutput, to url: URL,
+                             delegate: AVCaptureFileOutputRecordingDelegate) async -> Bool {
+        await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+            queue.async {
+                let ready = { output.connections.contains { $0.isActive && $0.isEnabled } }
+                let deadline = Date().addingTimeInterval(3)
+                while !ready() && Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
+                guard ready() else { cont.resume(returning: false); return }
+                output.startRecording(to: url, recordingDelegate: delegate)
+                cont.resume(returning: true)
+            }
+        }
+    }
+
     /// Removes the movie output so an idle session stays light.
     func detachMovieOutput(_ output: AVCaptureMovieFileOutput) {
         let session = session
