@@ -12,8 +12,9 @@ scratch with Apple's frameworks; no Hand Mirror code, art, fonts, or name is reu
 ## Goals
 
 1. Click the menu bar icon → a popover drops down showing the live camera.
-2. **Snaps:** take a photo (button or Space bar), shown on a Polaroid-style card with an optional date,
-   draw on it with a marker, and save it as a PNG.
+2. **Snaps:** take a photo (button or Space bar) with a white flash. It's shown as just the photo in a
+   pop-up below the camera; you can optionally add a frame (Polaroid with date, White, Black, Film) and save
+   it as a PNG. (Drawing on snaps was removed: people wouldn't use it.)
 3. **Mic check:** a live level meter for the microphone, with a microphone picker.
 4. **Floating window:** an alternative to the popover. It floats above other windows, can be dragged,
    has preset sizes, and stays open.
@@ -76,4 +77,4 @@ scratch with Apple's frameworks; no Hand Mirror code, art, fonts, or name is reu
 
 ## Left to the builder
 
-Exact visual styling of the controls bar, settings layout, marker colors (pick 4–5), and animation details.
+Exact visual styling of the controls bar, settings layout, and animation details.

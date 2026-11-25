@@ -1,14 +1,14 @@
 import SwiftUI
 import AppKit
+import CompactCore
 
-/// The polaroid card. The photo area is its own view so a drawing canvas can be overlaid on it only.
+/// A snap with its chosen frame. With `.none` it's just the photo.
+/// Laid out at `photoWidth`; when saving, render at `image.width / photoWidth` scale for full resolution.
 struct SnapCardView: View {
     let image: CGImage
+    let frame: SnapFrame
     let includeDate: Bool
     let date: Date
-    @Binding var strokes: [MarkerStroke]
-    var color: Color = .red
-    var drawingEnabled: Bool = false
 
     static let photoWidth: CGFloat = 320
 
@@ -17,27 +17,50 @@ struct SnapCardView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        switch frame {
+        case .none:
             photo
-            caption
+        case .polaroid:
+            VStack(spacing: 0) {
+                photo.clipShape(RoundedRectangle(cornerRadius: 3))
+                Text(includeDate ? date.formatted(date: .long, time: .omitted) : " ")
+                    .font(.custom("Marker Felt", size: 18))
+                    .foregroundStyle(Color(white: 0.2))
+                    .frame(width: photoSize.width, height: 56)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .background(Color.white)
+        case .white:
+            photo.padding(14).background(Color.white)
+        case .black:
+            photo.padding(14).background(Color.black)
+        case .film:
+            VStack(spacing: 0) {
+                sprockets
+                photo
+                sprockets
+            }
+            .padding(.horizontal, 10)
+            .background(Color(white: 0.08))
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 16)
-        .background(Color.white)
     }
 
-    var photo: some View {
+    private var photo: some View {
         Image(decorative: image, scale: 1)
             .resizable()
             .frame(width: photoSize.width, height: photoSize.height)
-            .overlay(MarkerCanvas(strokes: $strokes, color: color, enabled: drawingEnabled))
-            .clipShape(RoundedRectangle(cornerRadius: 3))
     }
 
-    private var caption: some View {
-        Text(includeDate ? date.formatted(date: .long, time: .omitted) : " ")
-            .font(.custom("Marker Felt", size: 18))
-            .foregroundStyle(Color(white: 0.2))
-            .frame(width: photoSize.width, height: 56)
+    /// A row of rounded holes along a film strip edge.
+    private var sprockets: some View {
+        HStack(spacing: 9) {
+            ForEach(0..<14, id: \.self) { _ in
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(Color(white: 0.85))
+                    .frame(width: 11, height: 8)
+            }
+        }
+        .frame(width: photoSize.width, height: 22)
     }
 }

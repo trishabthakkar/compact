@@ -57,15 +57,19 @@ final class SnapPopoverController: NSObject, NSPopoverDelegate {
 
     private func save() {
         guard !model.saved else { return }
-        // Chrome-free card: strokes are in photo coordinates, so they land where they were drawn.
-        let card = SnapCardView(image: image, includeDate: includeDate, date: date,
-                                strokes: .constant(model.strokes), color: .red, drawingEnabled: false)
-        let renderer = ImageRenderer(content: card)
-        renderer.scale = 2
         do {
-            guard let cg = renderer.cgImage else { throw CocoaError(.fileWriteUnknown) }
-            let rep = NSBitmapImageRep(cgImage: cg)
-            guard let png = rep.representation(using: .png, properties: [:]) else {
+            let output: CGImage
+            if model.frame == .none {
+                output = image   // just the photo, at the camera's full resolution
+            } else {
+                // Render the framed card so the photo inside keeps its full resolution.
+                let card = SnapCardView(image: image, frame: model.frame, includeDate: includeDate, date: date)
+                let renderer = ImageRenderer(content: card)
+                renderer.scale = max(2, CGFloat(image.width) / SnapCardView.photoWidth)
+                guard let cg = renderer.cgImage else { throw CocoaError(.fileWriteUnknown) }
+                output = cg
+            }
+            guard let png = NSBitmapImageRep(cgImage: output).representation(using: .png, properties: [:]) else {
                 throw CocoaError(.fileWriteUnknown)
             }
             let folder = MediaLocation.folder(for: .snap, home: FileManager.default.homeDirectoryForCurrentUser)
@@ -84,8 +88,7 @@ final class SnapPopoverController: NSObject, NSPopoverDelegate {
 @Observable
 final class SnapWindowModel {
     var saved = false
-    var strokes: [MarkerStroke] = []
-    var color: Color = .red
+    var frame: SnapFrame = .default
 }
 
 private struct SnapWindowContent: View {
@@ -97,33 +100,17 @@ private struct SnapWindowContent: View {
     let onDiscard: () -> Void
     let onReveal: () -> Void
 
-    private static let swatches: [(String, Color)] = [
-        ("Black", .black), ("Red", .red), ("Blue", .blue), ("Green", .green), ("Yellow", .yellow)]
-
     var body: some View {
         VStack(spacing: 12) {
-            SnapCardView(image: image, includeDate: includeDate, date: date,
-                         strokes: $model.strokes, color: model.color, drawingEnabled: !model.saved)
-                .shadow(radius: 4, y: 2)
-            HStack(spacing: 8) {
-                ForEach(Self.swatches, id: \.0) { name, color in
-                    Button { model.color = color } label: {
-                        Circle().fill(color)
-                            .frame(width: 18, height: 18)
-                            .overlay(Circle().stroke(Color.gray.opacity(0.6), lineWidth: 1))
-                            .overlay(Circle().stroke(Color.accentColor, lineWidth: 2).padding(-3)
-                                .opacity(model.color == color ? 1 : 0))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(name)
-                }
-                Spacer().frame(width: 8)
-                Button("Undo") { _ = model.strokes.popLast() }
-                    .keyboardShortcut("z", modifiers: .command)
-                    .disabled(model.strokes.isEmpty || model.saved)
-                Button("Clear") { model.strokes.removeAll() }
-                    .disabled(model.strokes.isEmpty || model.saved)
+            SnapCardView(image: image, frame: model.frame, includeDate: includeDate, date: date)
+                .shadow(radius: model.frame == .none ? 0 : 4, y: 2)
+                .animation(.easeInOut(duration: 0.15), value: model.frame)
+            Picker("Frame", selection: $model.frame) {
+                ForEach(SnapFrame.allCases, id: \.self) { Text($0.displayName).tag($0) }
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .disabled(model.saved)
             HStack {
                 Button("Discard", action: onDiscard)
                 Spacer()
@@ -134,5 +121,6 @@ private struct SnapWindowContent: View {
             }
         }
         .padding(16)
+        .frame(width: 384)
     }
 }
