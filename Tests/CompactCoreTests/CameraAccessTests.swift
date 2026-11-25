@@ -25,4 +25,11 @@ struct CameraAccessTests {
         #expect(shouldRunCamera(panelVisible: false, isRecording: true) == true)
         #expect(shouldRunCamera(panelVisible: true, isRecording: true) == true)
     }
+
+    @Test func screenUnavailableStopsCameraUnlessRecording() {
+        #expect(shouldRunCamera(panelVisible: true, isRecording: false, screenAvailable: false) == false)
+        #expect(shouldRunCamera(panelVisible: true, isRecording: true, screenAvailable: false) == true)
+        #expect(shouldRunCamera(panelVisible: false, isRecording: false, screenAvailable: false) == false)
+        #expect(shouldRunCamera(panelVisible: true, isRecording: false, screenAvailable: true) == true)
+    }
 }

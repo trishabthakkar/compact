@@ -1,4 +1,5 @@
-/// The camera runs only while the panel is visible or a recording is in progress.
-public func shouldRunCamera(panelVisible: Bool, isRecording: Bool) -> Bool {
-    panelVisible || isRecording
+
+/// The camera runs only while the panel is visible on an available (awake, unlocked) screen, or while recording.
+public func shouldRunCamera(panelVisible: Bool, isRecording: Bool, screenAvailable: Bool = true) -> Bool {
+    (panelVisible && screenAvailable) || isRecording
 }
