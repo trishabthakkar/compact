@@ -48,7 +48,8 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
 
     func selectMicrophone(id: String) {
         store.update { $0.microphoneID = id }
-        if !micRequired.isEmpty { applyMic() }
+        // Frozen while recording: swapping the input would break the movie output's audio.
+        if !micRequired.isEmpty, !micRequired.contains("vlog") { applyMic() }
     }
 
     /// Keeps the mic input attached for `reason` (e.g. "vlog") until released.
@@ -77,28 +78,37 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
     /// True while any reason (meter, vlog) needs the mic. Late level updates are dropped once false.
     private var micIsWanted: Bool { !micRequired.isEmpty }
 
+    /// Reconciles the mic input and the meter's data output with `micRequired`.
+    /// The audio input is never removed/re-added when the wanted device is already attached: that would
+    /// break a running movie output's audio connection. Meter on/off only adds/removes the data output.
     private func applyMic() {
         microphones = Self.discoverMicrophones()
         let want = !micRequired.isEmpty && AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         let device = want ? preferredMicrophone() : nil
+        let meter = device != nil && micRequired.contains("meter")
         let session = session, output = audioOutput
         queue.async { [weak self] in
             guard let self else { return }
             session.beginConfiguration()
-            for input in session.inputs where (input as? AVCaptureDeviceInput)?.device.hasMediaType(.audio) == true {
-                session.removeInput(input)
-            }
-            if let device, let input = try? AVCaptureDeviceInput(device: device), session.canAddInput(input) {
-                session.addInput(input)
-                if !session.outputs.contains(output), session.canAddOutput(output) {
-                    output.setSampleBufferDelegate(self, queue: self.audioQueue)
-                    session.addOutput(output)
+            let current = session.inputs.compactMap { $0 as? AVCaptureDeviceInput }
+                .first { $0.device.hasMediaType(.audio) }
+            var attached = current != nil
+            if current?.device.uniqueID != device?.uniqueID {
+                if let current { session.removeInput(current); attached = false }
+                if let device, let input = try? AVCaptureDeviceInput(device: device), session.canAddInput(input) {
+                    session.addInput(input)
+                    attached = true
                 }
-            } else if session.outputs.contains(output) {
+            }
+            let hasOutput = session.outputs.contains(output)
+            if meter, attached, !hasOutput, session.canAddOutput(output) {
+                output.setSampleBufferDelegate(self, queue: self.audioQueue)
+                session.addOutput(output)
+            } else if (!meter || !attached), hasOutput {
                 session.removeOutput(output)
             }
             session.commitConfiguration()
-            if device == nil { Task { @MainActor in if !self.micIsWanted { self.audioLevel = 0 } } }
+            if !meter { Task { @MainActor in if !self.micIsWanted { self.audioLevel = 0 } } }
         }
     }
 

@@ -14,6 +14,8 @@ final class VlogRecorder {
     @ObservationIgnored private let camera: CameraController
     @ObservationIgnored private var output: AVCaptureMovieFileOutput?
     @ObservationIgnored private var delegate: Delegate?
+    @ObservationIgnored private var recordingID: UUID?
+    @ObservationIgnored private var didStartRecording = false
     @ObservationIgnored private var finishWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(camera: CameraController) { self.camera = camera }
@@ -29,21 +31,29 @@ final class VlogRecorder {
             return
         }
         let output = AVCaptureMovieFileOutput()
+        let id = UUID()
         self.output = output
+        recordingID = id
+        didStartRecording = false
         camera.requireMic("vlog")
-        let startedAt = Date()
-        set(.recording(startedAt: startedAt, url: url))   // camera must stay on from now
+        set(.recording(startedAt: Date(), url: url))   // camera must stay on from now
         Task { @MainActor in
-            if let message = await camera.attachMovieOutput(output) {
-                self.cleanup()
-                self.fail(message)
+            let failure = await camera.attachMovieOutput(output)
+            guard self.recordingID == id, case .recording = self.state else {
+                // Stopped/failed before we got here: this task owns the leftover attachment.
+                if failure == nil { self.camera.detachMovieOutput(output) }
                 return
             }
-            guard case .recording = self.state else { return }
+            if let failure {
+                self.cleanup()
+                self.fail(failure)
+                return
+            }
             let delegate = Delegate { [weak self] error in
-                Task { @MainActor in self?.finished(error: error) }
+                Task { @MainActor in self?.finished(id: id, error: error) }
             }
             self.delegate = delegate
+            self.didStartRecording = true
             output.startRecording(to: url, recordingDelegate: delegate)
         }
     }
@@ -53,7 +63,11 @@ final class VlogRecorder {
         switch state {
         case .recording:
             set(.stopping)
-            if let output, output.isRecording { output.stopRecording() } else { finished(error: nil) }
+            if didStartRecording, let output {
+                output.stopRecording()   // always wait for the delegate once started
+            } else {
+                finished(id: recordingID, error: nil)   // never started: the start task detaches the output
+            }
         case .stopping: break
         default: return
         }
@@ -61,12 +75,13 @@ final class VlogRecorder {
         await withCheckedContinuation { finishWaiters.append($0) }
     }
 
-    private func finished(error: Error?) {
-        guard state.isActive else { return }
+    private func finished(id: UUID?, error: Error?) {
+        guard state.isActive, id == recordingID else { return }
         // AVFoundation reports some errors (e.g. disk full) with the file still finished OK.
         let fileOK = (error as NSError?)?.userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool ?? (error == nil)
+        let started = didStartRecording
         cleanup()
-        if let error, !fileOK {
+        if let error, !fileOK, started {
             fail("Recording stopped: \(error.localizedDescription)")
         } else {
             set(.idle)
@@ -80,6 +95,8 @@ final class VlogRecorder {
         if let output { camera.detachMovieOutput(output) }
         output = nil
         delegate = nil
+        recordingID = nil
+        didStartRecording = false
         camera.releaseMic("vlog")
     }
 
