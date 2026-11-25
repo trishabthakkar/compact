@@ -2,15 +2,17 @@ import AppKit
 import SwiftUI
 import CompactCore
 
+/// Shows a fresh snap in a pop-up attached just below the Compact camera view, where you can
+/// draw on it and save or discard it. Only one snap pop-up is open at a time.
 @MainActor
-final class SnapWindowController: NSObject, NSWindowDelegate {
+final class SnapPopoverController: NSObject, NSPopoverDelegate {
     private let image: CGImage
     private let includeDate: Bool
     private let date: Date
-    private var window: NSWindow?
+    private let popover = NSPopover()
     private var savedURL: URL?
     private let model = SnapWindowModel()
-    private static var open: [SnapWindowController] = []
+    private static var current: SnapPopoverController?
 
     init(image: CGImage, includeDate: Bool, date: Date) {
         self.image = image
@@ -19,30 +21,38 @@ final class SnapWindowController: NSObject, NSWindowDelegate {
         super.init()
     }
 
-    func show() {
+    /// True if `window` is the open snap pop-up (clicks there must not close the camera pop-up).
+    static func owns(_ window: NSWindow?) -> Bool {
+        guard let window, let current else { return false }
+        return current.popover.contentViewController?.view.window === window
+    }
+
+    /// Closes the open snap pop-up, if any (used when the camera view it's attached to closes).
+    static func closeCurrent() {
+        current?.popover.performClose(nil)
+    }
+
+    /// Opens the snap below `anchor` (the camera view), replacing any snap already showing.
+    func show(below anchor: NSView) {
+        Self.current?.popover.performClose(nil)
         let root = SnapWindowContent(
             image: image, includeDate: includeDate, date: date,
             model: model,
             onSave: { [weak self] in self?.save() },
-            onDiscard: { [weak self] in self?.window?.close() },
+            onDiscard: { [weak self] in self?.popover.performClose(nil) },
             onReveal: { [weak self] in
                 if let url = self?.savedURL { NSWorkspace.shared.activateFileViewerSelecting([url]) }
             })
-        let host = NSHostingController(rootView: root)
-        let w = NSWindow(contentViewController: host)
-        w.title = "Snap"
-        w.styleMask = [.titled, .closable]
-        w.isReleasedWhenClosed = false
-        w.delegate = self
-        w.center()
-        window = w
-        Self.open.append(self)
+        popover.contentViewController = NSHostingController(rootView: root)
+        popover.behavior = .applicationDefined   // closes via Discard, or when Compact closes
+        popover.delegate = self
+        Self.current = self
+        popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
         NSApp.activate()
-        w.makeKeyAndOrderFront(nil)
     }
 
-    func windowWillClose(_ notification: Notification) {
-        Self.open.removeAll { $0 === self }
+    func popoverDidClose(_ notification: Notification) {
+        if Self.current === self { Self.current = nil }
     }
 
     private func save() {

@@ -9,9 +9,14 @@ struct CameraPanelView: View {
     /// Non-nil when hosted in the floating window: controls become a hover overlay and a close button appears.
     var onClose: (() -> Void)? = nil
     @State private var hovering = false
+    /// The camera view's AppKit view, used to attach the snap pop-up just below it.
+    @State private var anchor: NSView?
 
     var body: some View {
-        if onClose != nil { floatingBody } else { popoverBody }
+        Group {
+            if onClose != nil { floatingBody } else { popoverBody }
+        }
+        .background(ViewAnchor { anchor = $0 })
     }
 
     private var floatingBody: some View {
@@ -131,7 +136,8 @@ struct CameraPanelView: View {
             guard let frame = await camera.captureFrame() else { NSSound.beep(); return }
             // Match what you see: mirror the snap whenever the live preview is mirrored.
             let photo = mirror ? (mirroredHorizontally(frame) ?? frame) : frame
-            SnapWindowController(image: photo, includeDate: includeDate, date: Date()).show()
+            guard let anchor else { return }
+            SnapPopoverController(image: photo, includeDate: includeDate, date: Date()).show(below: anchor)
         }
     }
 
@@ -236,4 +242,15 @@ private struct HoverTracker: NSViewRepresentable {
         override func mouseExited(with event: NSEvent) { onChange(false) }
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
     }
+}
+
+/// Reports the plain (non-flipped) NSView behind a SwiftUI view, so AppKit pop-ups can attach to it.
+private struct ViewAnchor: NSViewRepresentable {
+    let onResolve: (NSView) -> Void
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { onResolve(view) }
+        return view
+    }
+    func updateNSView(_ nsView: NSView, context: Context) {}
 }

@@ -61,6 +61,7 @@ final class PresentationController: NSObject, NSPopoverDelegate {
     }
 
     func hide() {
+        SnapPopoverController.closeCurrent()
         if floating.isVisible {
             floating.hide()
             onVisibilityChange?(false)
@@ -70,6 +71,7 @@ final class PresentationController: NSObject, NSPopoverDelegate {
     }
 
     func popoverDidClose(_ notification: Notification) {
+        SnapPopoverController.closeCurrent()
         stopOutsideClickMonitoring()
         onVisibilityChange?(false)
     }
@@ -91,7 +93,8 @@ final class PresentationController: NSObject, NSPopoverDelegate {
             MainActor.assumeIsolated {
                 guard let self, NSApp.modalWindow == nil else { return }
                 let window = event.window
-                if window === self.popover.contentViewController?.view.window || window === self.anchor?.window { return }
+                if window === self.popover.contentViewController?.view.window || window === self.anchor?.window
+                    || SnapPopoverController.owns(window) { return }
                 self.closeForOutsideClick()
             }
             return event
