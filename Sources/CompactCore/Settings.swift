@@ -32,6 +32,7 @@ public struct Settings: Equatable, Sendable {
     public var mirrorPreview: Bool = true
     public var showMicMeter: Bool = false
     public var snapIncludesDate: Bool = true
+    public var snapShutterSound: Bool = false
     public var notchTriggerEnabled: Bool = false
     public var rememberedOrigin: CGPoint? = nil
     public var cameraID: String? = nil
@@ -76,6 +77,7 @@ public final class SettingsStore {
         s.mirrorPreview = bool("mirrorPreview", s.mirrorPreview)
         s.showMicMeter = bool("showMicMeter", s.showMicMeter)
         s.snapIncludesDate = bool("snapIncludesDate", s.snapIncludesDate)
+        s.snapShutterSound = bool("snapShutterSound", s.snapShutterSound)
         s.notchTriggerEnabled = bool("notchTriggerEnabled", s.notchTriggerEnabled)
         if let xy = d.array(forKey: key("rememberedOrigin")) as? [Double], xy.count == 2 {
             s.rememberedOrigin = CGPoint(x: xy[0], y: xy[1])
@@ -102,6 +104,7 @@ public final class SettingsStore {
         set("mirrorPreview", s.mirrorPreview)
         set("showMicMeter", s.showMicMeter)
         set("snapIncludesDate", s.snapIncludesDate)
+        set("snapShutterSound", s.snapShutterSound)
         set("notchTriggerEnabled", s.notchTriggerEnabled)
         set("rememberedOrigin", s.rememberedOrigin.map { [Double($0.x), Double($0.y)] })
         set("hotkey", s.hotkey.map { [Int($0.keyCode), Int($0.modifiers)] })

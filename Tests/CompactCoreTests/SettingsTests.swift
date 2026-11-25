@@ -14,6 +14,13 @@ struct SettingsTests {
         #expect(SettingsStore(defaults: d).settings == Settings())
     }
 
+    @Test func shutterSoundOffByDefaultAndPersists() {
+        let d = freshDefaults()
+        #expect(SettingsStore(defaults: d).settings.snapShutterSound == false)
+        SettingsStore(defaults: d).update { $0.snapShutterSound = true }
+        #expect(SettingsStore(defaults: d).settings.snapShutterSound == true)
+    }
+
     @Test func updatePersistsAcrossInstances() {
         let d = freshDefaults()
         let store = SettingsStore(defaults: d)

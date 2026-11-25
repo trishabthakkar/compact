@@ -92,6 +92,7 @@ struct SettingsView: View {
             }
             Section("Snaps") {
                 Toggle("Include date", isOn: binding(\.snapIncludesDate))
+                Toggle("Shutter sound", isOn: binding(\.snapShutterSound))
             }
         }
         .formStyle(.grouped)

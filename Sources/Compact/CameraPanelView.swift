@@ -137,8 +137,10 @@ struct CameraPanelView: View {
                 byReference: true) ?? NSSound(named: "Tink")
 
     private func snap() {
-        Self.shutterSound?.stop()   // restart if a previous click is still playing
-        Self.shutterSound?.play()
+        if store.settings.snapShutterSound {
+            Self.shutterSound?.stop()   // restart if a previous click is still playing
+            Self.shutterSound?.play()
+        }
         flash = 1
         withAnimation(.easeOut(duration: 0.5)) { flash = 0 }
         let includeDate = store.settings.snapIncludesDate
