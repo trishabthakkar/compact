@@ -36,6 +36,7 @@ public struct Settings: Equatable, Sendable {
     public var rememberedOrigin: CGPoint? = nil
     public var cameraID: String? = nil
     public var microphoneID: String? = nil
+    public var hotkey: Hotkey? = nil
 
     public init() {}
 }
@@ -79,6 +80,9 @@ public final class SettingsStore {
         if let xy = d.array(forKey: key("rememberedOrigin")) as? [Double], xy.count == 2 {
             s.rememberedOrigin = CGPoint(x: xy[0], y: xy[1])
         }
+        if let kc = d.array(forKey: key("hotkey")) as? [Int], kc.count == 2, kc[0] >= 0, kc[1] >= 0 {
+            s.hotkey = Hotkey(keyCode: UInt32(kc[0]), modifiers: UInt32(kc[1]))
+        }
         s.cameraID = d.string(forKey: key("cameraID"))
         s.microphoneID = d.string(forKey: key("microphoneID"))
         return s
@@ -99,6 +103,7 @@ public final class SettingsStore {
         set("snapIncludesDate", s.snapIncludesDate)
         set("notchTriggerEnabled", s.notchTriggerEnabled)
         set("rememberedOrigin", s.rememberedOrigin.map { [Double($0.x), Double($0.y)] })
+        set("hotkey", s.hotkey.map { [Int($0.keyCode), Int($0.modifiers)] })
         set("cameraID", s.cameraID)
         set("microphoneID", s.microphoneID)
     }

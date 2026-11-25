@@ -13,6 +13,7 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
     private let panel: FloatingPanel
     private var isPlacing = false
     private var appliedLayout: (WindowSize, WindowShape)?
+    private var appliedPosition: WindowPosition?
     private var saveTask: Task<Void, Never>?
 
     var isVisible: Bool { panel.isVisible }
@@ -55,6 +56,7 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
         let s = store.settings
         let size = contentSize(size: s.size, shape: s.shape)
         appliedLayout = (s.size, s.shape)
+        appliedPosition = s.position
         isPlacing = true
         defer { isPlacing = false }
         if reposition {
@@ -76,8 +78,13 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
             Task { @MainActor in
                 guard let self else { return }
                 let st = self.store.settings
-                if self.panel.isVisible, let a = self.appliedLayout, a != (st.size, st.shape) {
-                    self.applyGeometry(reposition: false)
+                if self.panel.isVisible {
+                    if self.appliedPosition != st.position, st.position != .remembered {
+                        self.applyGeometry(reposition: true)
+                    } else if let a = self.appliedLayout, a != (st.size, st.shape) {
+                        self.applyGeometry(reposition: false)
+                    }
+                    self.appliedPosition = st.position
                 }
                 self.observeSettings()
             }

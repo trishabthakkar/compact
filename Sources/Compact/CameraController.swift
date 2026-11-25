@@ -38,6 +38,12 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
         refresh()
     }
 
+    /// Re-reads the device lists (no permission needed) so Settings pickers are current.
+    func refreshDevices() {
+        refresh()
+        microphones = Self.discoverMicrophones()
+    }
+
     // MARK: - Microphone
 
     func setMicMeter(enabled: Bool) {

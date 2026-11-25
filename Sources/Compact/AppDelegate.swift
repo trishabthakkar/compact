@@ -1,4 +1,5 @@
 import AppKit
+import Observation
 import CompactCore
 
 @MainActor
@@ -8,6 +9,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var recorder = VlogRecorder(camera: camera)
     private lazy var presentation = PresentationController(camera: camera, recorder: recorder, store: store)
     private var statusItem: StatusItemController?
+    private let hotkey = GlobalHotkey()
+    private var lastHotkey: Hotkey?
+    private lazy var settingsWindow = SettingsWindowController { [unowned self] in
+        SettingsView(store: store, camera: camera, recorder: recorder,
+                     onIconChanged: { [weak self] in self?.statusItem?.refreshIcon() },
+                     onWindowModeChanged: { [weak self] in self?.presentation.hide() })
+    }
     private var panelVisible = false
     private var cameraRunning = false
 
@@ -36,6 +44,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = StatusItemController(store: store) { [weak self] in
             guard let self else { return }
             self.presentation.toggle(relativeTo: self.statusItem?.button)
+        }
+        statusItem?.onOpenSettings = { [weak self] in self?.settingsWindow.show() }
+        applyHotkey()
+        observeHotkey()
+    }
+
+    private func applyHotkey() {
+        lastHotkey = store.settings.hotkey
+        hotkey.register(lastHotkey) { [weak self] in
+            guard let self else { return }
+            self.presentation.toggle(relativeTo: self.statusItem?.button)
+        }
+    }
+
+    private func observeHotkey() {
+        withObservationTracking {
+            _ = store.settings.hotkey
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                if self.store.settings.hotkey != self.lastHotkey { self.applyHotkey() }
+                self.observeHotkey()
+            }
         }
     }
 
