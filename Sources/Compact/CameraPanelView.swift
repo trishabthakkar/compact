@@ -11,6 +11,8 @@ struct CameraPanelView: View {
     @State private var hovering = false
     /// The camera view's AppKit view, used to attach the snap pop-up just below it.
     @State private var anchor: NSView?
+    /// Photo Booth-style white flash over the video when a snap is taken.
+    @State private var flash: Double = 0
 
     var body: some View {
         Group {
@@ -98,6 +100,7 @@ struct CameraPanelView: View {
             }
         }
         .frame(width: width, height: height)
+        .overlay { Color.white.opacity(flash).allowsHitTesting(false) }
         .overlay(alignment: .bottom) {
             micMeter.padding(.horizontal, meterSideInset).padding(.bottom, meterBottomInset)
         }
@@ -128,8 +131,16 @@ struct CameraPanelView: View {
         }
     }
 
+    /// macOS's own camera shutter click (falls back to Tink if it isn't there).
+    private static let shutterSound: NSSound? =
+        NSSound(contentsOfFile: "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Shutter.aif",
+                byReference: true) ?? NSSound(named: "Tink")
+
     private func snap() {
-        NSSound(named: "Tink")?.play()
+        Self.shutterSound?.stop()   // restart if a previous click is still playing
+        Self.shutterSound?.play()
+        flash = 1
+        withAnimation(.easeOut(duration: 0.5)) { flash = 0 }
         let includeDate = store.settings.snapIncludesDate
         let mirror = store.settings.mirrorPreview
         Task { @MainActor in
