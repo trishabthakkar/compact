@@ -1,11 +1,13 @@
 import AVFoundation
+import CoreImage
 import Foundation
 import Observation
 import CompactCore
 
 /// Owns the capture session. Later tasks add outputs (mic, snaps, recording) via `queue`.
 @MainActor @Observable
-final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate {
+final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate,
+                              AVCaptureVideoDataOutputSampleBufferDelegate {
     @ObservationIgnored let session = AVCaptureSession()
     private(set) var access: CameraAccess = .notDetermined
     private(set) var cameras: [AVCaptureDevice] = []
@@ -20,6 +22,11 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
     @ObservationIgnored private var wantsRunning = false
     @ObservationIgnored private let audioOutput = AVCaptureAudioDataOutput()
     @ObservationIgnored private let audioQueue = DispatchQueue(label: "compact.audio")
+    @ObservationIgnored nonisolated private let videoOutput = AVCaptureVideoDataOutput()
+    @ObservationIgnored private let videoQueue = DispatchQueue(label: "compact.video")
+    /// Pending `captureFrame()` callers, resumed by the next video frame (lock-protected; video queue + main).
+    @ObservationIgnored private let frameLock = NSLock()
+    @ObservationIgnored nonisolated(unsafe) private var frameWaiters: [UUID: CheckedContinuation<CGImage?, Never>] = [:]
     /// Reasons the mic input must be present ("meter", later "vlog"). Mic is attached iff non-empty.
     @ObservationIgnored private var micRequired: Set<String> = []
     @ObservationIgnored nonisolated(unsafe) private var lastLevelTime: CFAbsoluteTime = 0  // audio queue only
@@ -99,6 +106,7 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
 
     nonisolated func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer,
                                    from connection: AVCaptureConnection) {
+        if output === videoOutput { handleVideoFrame(sampleBuffer); return }
         let now = CFAbsoluteTimeGetCurrent()
         guard now - lastLevelTime >= 0.05 else { return }   // <= 20 updates/s
         lastLevelTime = now
@@ -107,6 +115,38 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
         let avg = channels.map(\.averagePowerLevel).reduce(0, +) / Float(channels.count)
         let level = normalizedLevel(decibels: avg)
         Task { @MainActor [weak self] in self?.audioLevel = level }
+    }
+
+    // MARK: - Snaps
+
+    /// Returns the next video frame, unmirrored, or nil if none arrives within 2 seconds.
+    func captureFrame() async -> CGImage? {
+        let id = UUID()
+        return await withCheckedContinuation { (cont: CheckedContinuation<CGImage?, Never>) in
+            frameLock.lock()
+            frameWaiters[id] = cont
+            frameLock.unlock()
+            DispatchQueue.global().asyncAfter(deadline: .now() + 2) { [weak self] in
+                self?.resumeWaiter(id, with: nil)
+            }
+        }
+    }
+
+    private nonisolated func resumeWaiter(_ id: UUID, with image: CGImage?) {
+        frameLock.lock()
+        let cont = frameWaiters.removeValue(forKey: id)
+        frameLock.unlock()
+        cont?.resume(returning: image)
+    }
+
+    private nonisolated func handleVideoFrame(_ sampleBuffer: CMSampleBuffer) {
+        frameLock.lock()
+        let ids = Array(frameWaiters.keys)
+        frameLock.unlock()
+        guard !ids.isEmpty, let pixels = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        let image = CIContext().createCGImage(CIImage(cvPixelBuffer: pixels),
+                                              from: CIImage(cvPixelBuffer: pixels).extent)
+        for id in ids { resumeWaiter(id, with: image) }
     }
 
     func start() {
@@ -170,6 +210,20 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
             if let input = try? AVCaptureDeviceInput(device: device), session.canAddInput(input) {
                 session.addInput(input)
                 added = true
+            }
+            if let self {
+                let output = self.videoOutput
+                if !session.outputs.contains(output), session.canAddOutput(output) {
+                    output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+                    output.alwaysDiscardsLateVideoFrames = true
+                    output.setSampleBufferDelegate(self, queue: self.videoQueue)
+                    session.addOutput(output)
+                }
+                if let conn = output.connection(with: .video) {
+                    // Snaps are true-to-life: never mirrored (the preview mirrors in the view layer).
+                    conn.automaticallyAdjustsVideoMirroring = false
+                    if conn.isVideoMirroringSupported { conn.isVideoMirrored = false }
+                }
             }
             if session.canSetSessionPreset(.high) { session.sessionPreset = .high }
             session.commitConfiguration()

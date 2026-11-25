@@ -33,6 +33,7 @@ struct CameraPanelView: View {
         .overlay(alignment: .bottom) { micMeter }
         controlsBar
         }
+        .background(SpaceKeyMonitor(onSpace: snap))
     }
 
     @ViewBuilder private var micMeter: some View {
@@ -52,6 +53,15 @@ struct CameraPanelView: View {
         }
     }
 
+    private func snap() {
+        NSSound(named: "Tink")?.play()
+        let includeDate = store.settings.snapIncludesDate
+        Task { @MainActor in
+            guard let frame = await camera.captureFrame() else { NSSound.beep(); return }
+            SnapWindowController(image: frame, includeDate: includeDate, date: Date()).show()
+        }
+    }
+
     /// Later tasks append buttons here (snap, record, folder).
     private var controlsBar: some View {
         HStack(spacing: 12) {
@@ -61,10 +71,42 @@ struct CameraPanelView: View {
                 Image(systemName: camera.micMeterOn ? "mic.fill" : "mic")
             }
             .help("Mic check")
+            Button { snap() } label: { Image(systemName: "camera.shutter.button") }
+                .help("Snap (Space)")
             Spacer()
         }
         .buttonStyle(.borderless)
         .padding(.horizontal, 10)
         .frame(width: 320, height: 32)
+    }
+}
+
+
+/// Fires `onSpace` for Space key-downs while this view's window is key and no text field is editing.
+private struct SpaceKeyMonitor: NSViewRepresentable {
+    let onSpace: () -> Void
+
+    func makeNSView(context: Context) -> MonitorView { MonitorView(onSpace: onSpace) }
+    func updateNSView(_ view: MonitorView, context: Context) { view.onSpace = onSpace }
+
+    final class MonitorView: NSView {
+        var onSpace: () -> Void
+        private var monitor: Any?
+        init(onSpace: @escaping () -> Void) { self.onSpace = onSpace; super.init(frame: .zero) }
+        required init?(coder: NSCoder) { fatalError() }
+
+        override func viewDidMoveToWindow() {
+            if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
+            guard window != nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self, let win = self.window, win.isKeyWindow, event.window === win,
+                      event.keyCode == 49, event.modifierFlags.intersection([.command, .option, .control]).isEmpty,
+                      !(win.firstResponder is NSText) else { return event }
+                self.onSpace()
+                return nil
+            }
+        }
+
+        deinit { if let monitor { NSEvent.removeMonitor(monitor) } }
     }
 }
