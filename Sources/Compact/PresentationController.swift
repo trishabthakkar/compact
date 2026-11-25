@@ -9,6 +9,9 @@ final class PresentationController: NSObject, NSPopoverDelegate {
     private let store: SettingsStore
     private var floating: FloatingWindowController!
     private weak var anchor: NSStatusBarButton?
+    /// True while recording: outside clicks don't close the popover.
+    private var keepOpen = false
+    private var outsideClickMonitors: [Any] = []
     var onVisibilityChange: ((Bool) -> Void)?
 
     var isVisible: Bool { popover.isShown || floating.isVisible }
@@ -16,7 +19,9 @@ final class PresentationController: NSObject, NSPopoverDelegate {
     init(camera: CameraController, recorder: VlogRecorder, store: SettingsStore) {
         self.store = store
         super.init()
-        popover.behavior = .transient
+        // Closing on outside clicks is handled by our own monitors (see startOutsideClickMonitoring):
+        // .transient is unreliable for a menu-bar-only app and can't be toggled while shown.
+        popover.behavior = .applicationDefined
         popover.contentSize = NSSize(width: 384, height: 216)
         popover.contentViewController = NSHostingController(
             rootView: CameraPanelView(camera: camera, recorder: recorder, store: store))
@@ -44,6 +49,7 @@ final class PresentationController: NSObject, NSPopoverDelegate {
             guard let button = anchor else { return }
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             NSApp.activate()
+            startOutsideClickMonitoring()
             onVisibilityChange?(true)
         }
     }
@@ -51,7 +57,7 @@ final class PresentationController: NSObject, NSPopoverDelegate {
     /// While recording, the popover stays open when you click elsewhere (it would normally close).
     /// Clicking the menu bar icon still closes it on purpose.
     func setKeepOpen(_ keepOpen: Bool) {
-        popover.behavior = keepOpen ? .applicationDefined : .transient
+        self.keepOpen = keepOpen
     }
 
     func hide() {
@@ -64,6 +70,43 @@ final class PresentationController: NSObject, NSPopoverDelegate {
     }
 
     func popoverDidClose(_ notification: Notification) {
+        stopOutsideClickMonitoring()
         onVisibilityChange?(false)
+    }
+
+    // MARK: - Closing on outside clicks
+
+    /// Closes the popover on any click outside it (in other apps, the desktop, or Compact's
+    /// other windows) unless a recording is in progress. Clicks on the menu bar icon are left
+    /// to `toggle`, and clicks in a modal alert are ignored.
+    private func startOutsideClickMonitoring() {
+        stopOutsideClickMonitoring()
+        let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] _ in
+            MainActor.assumeIsolated { self?.closeForOutsideClick() }
+        }) {
+            outsideClickMonitors.append(global)
+        }
+        if let local = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self, NSApp.modalWindow == nil else { return }
+                let window = event.window
+                if window === self.popover.contentViewController?.view.window || window === self.anchor?.window { return }
+                self.closeForOutsideClick()
+            }
+            return event
+        }) {
+            outsideClickMonitors.append(local)
+        }
+    }
+
+    private func stopOutsideClickMonitoring() {
+        outsideClickMonitors.forEach { NSEvent.removeMonitor($0) }
+        outsideClickMonitors = []
+    }
+
+    private func closeForOutsideClick() {
+        guard !keepOpen, popover.isShown else { return }
+        popover.performClose(nil)
     }
 }
