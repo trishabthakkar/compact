@@ -18,5 +18,7 @@ cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 for b in "$ARM"/*.bundle; do
   [ -e "$b" ] && cp -R "$b" "$APP/Contents/Resources/"
 done
-codesign --force --deep --sign - "$APP"
+# Ad-hoc signature with a stable designated requirement: macOS remembers camera/mic
+# permission by this requirement, so rebuilds keep the user's Allow instead of asking again.
+codesign --force --deep --sign - -r='designated => identifier "com.compact.app"' "$APP"
 echo "$PWD/$APP"

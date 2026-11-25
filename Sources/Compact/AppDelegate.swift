@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import Observation
 import CompactCore
 
@@ -42,6 +43,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Asks for camera and microphone access once, the first time Compact opens,
+    /// instead of waiting until each is first used. Does nothing once answered.
+    private func requestPermissionsUpFront() {
+        Task { @MainActor in
+            if AVCaptureDevice.authorizationStatus(for: .video) == .notDetermined {
+                _ = await AVCaptureDevice.requestAccess(for: .video)
+            }
+            if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
+                _ = await AVCaptureDevice.requestAccess(for: .audio)
+            }
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         presentation.onVisibilityChange = { [weak self] visible in
             self?.panelVisible = visible
@@ -54,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         camera.onAccessGrantedAfterPanelClosed = { [weak self] in self?.presentation.show() }
         observeScreenAvailability()
+        requestPermissionsUpFront()
         statusItem = StatusItemController(store: store) { [weak self] in
             guard let self else { return }
             self.presentation.toggle(relativeTo: self.statusItem?.button)
