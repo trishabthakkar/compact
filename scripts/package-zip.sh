@@ -10,6 +10,6 @@ rm -rf build/zip-stage build/Compact.zip
 mkdir -p "$STAGE"
 cp -R build/Compact.app "$STAGE/Compact.app"
 cp README.md "$STAGE/How to open Compact.txt"
-ditto -c -k --keepParent "$STAGE" build/Compact.zip
+ditto -c -k --norsrc --noextattr --keepParent "$STAGE" build/Compact.zip
 rm -rf build/zip-stage
 echo "$PWD/build/Compact.zip"
