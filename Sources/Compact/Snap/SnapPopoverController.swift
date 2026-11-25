@@ -13,6 +13,7 @@ final class SnapPopoverController: NSObject, NSPopoverDelegate {
     private var savedURL: URL?
     private let model = SnapWindowModel()
     private static var current: SnapPopoverController?
+    private var outsideClickMonitors: [Any] = []
 
     init(image: CGImage, includeDate: Bool, date: Date) {
         self.image = image
@@ -52,7 +53,37 @@ final class SnapPopoverController: NSObject, NSPopoverDelegate {
     }
 
     func popoverDidClose(_ notification: Notification) {
+        stopOutsideClickMonitoring()
         if Self.current === self { Self.current = nil }
+    }
+
+    // MARK: - Closing a saved snap on outside clicks
+
+    /// Once the snap is saved, any click outside this pop-up closes it. (An unsaved snap stays
+    /// until you Save or Discard, so it isn't lost by accident.)
+    private func startOutsideClickMonitoring() {
+        stopOutsideClickMonitoring()
+        let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] _ in
+            MainActor.assumeIsolated { self?.popover.performClose(nil) }
+        }) {
+            outsideClickMonitors.append(global)
+        }
+        if let local = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self, NSApp.modalWindow == nil,
+                      event.window !== self.popover.contentViewController?.view.window else { return }
+                self.popover.performClose(nil)
+            }
+            return event
+        }) {
+            outsideClickMonitors.append(local)
+        }
+    }
+
+    private func stopOutsideClickMonitoring() {
+        outsideClickMonitors.forEach { NSEvent.removeMonitor($0) }
+        outsideClickMonitors = []
     }
 
     private func save() {
@@ -77,6 +108,7 @@ final class SnapPopoverController: NSObject, NSPopoverDelegate {
             try png.write(to: url)
             savedURL = url
             model.saved = true
+            startOutsideClickMonitoring()   // saved: a click anywhere else now closes it
         } catch {
             let alert = NSAlert(error: error)
             alert.messageText = "Couldn't save the snap"
