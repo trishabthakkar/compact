@@ -10,6 +10,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var presentation = PresentationController(camera: camera, recorder: recorder, store: store)
     private var statusItem: StatusItemController?
     private let hotkey = GlobalHotkey()
+    private lazy var notch = NotchTriggerController { [weak self] in
+        guard let self else { return }
+        self.presentation.toggle(relativeTo: self.statusItem?.button)
+    }
     private var lastHotkey: Hotkey?
     private lazy var settingsWindow = SettingsWindowController { [unowned self] in
         SettingsView(store: store, camera: camera, recorder: recorder,
@@ -48,6 +52,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem?.onOpenSettings = { [weak self] in self?.settingsWindow.show() }
         applyHotkey()
         observeHotkey()
+        notch.update(enabled: store.settings.notchTriggerEnabled)
+        observeNotch()
+    }
+
+    private func observeNotch() {
+        withObservationTracking {
+            _ = store.settings.notchTriggerEnabled
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.notch.update(enabled: self.store.settings.notchTriggerEnabled)
+                self.observeNotch()
+            }
+        }
     }
 
     private func applyHotkey() {

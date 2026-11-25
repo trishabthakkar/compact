@@ -1,0 +1,43 @@
+# Compact
+
+Compact is a tiny camera mirror that lives in your Mac's menu bar. Click it before a call to check how you look, test your microphone, snap a photo, or record a quick vlog. The camera is only on while Compact is open.
+
+Made for macOS 14 (Sonoma) or newer.
+
+## Install (for friends)
+
+1. Unzip `Compact.zip`.
+2. Drag `Compact` into your **Applications** folder.
+3. The first time, **right-click** Compact and choose **Open**, then click **Open** again. (Double-clicking won't work the first time because the app isn't from the App Store.)
+4. Allow **camera** and **microphone** access when your Mac asks.
+
+Compact appears as an icon in the menu bar at the top of the screen. Click it to see yourself.
+
+### If macOS says the app is "damaged"
+
+It isn't. macOS is just being cautious about apps from outside the App Store. Open the Terminal app, paste this, and press Return:
+
+```
+xattr -cr /Applications/Compact.app
+```
+
+Then right-click, Open again.
+
+## What it does
+
+- Live camera preview from the menu bar (popover or floating window)
+- Mic check meter
+- Snaps, saved to `Pictures/Compact`
+- Vlog recording, saved to `Movies/Compact`
+- Optional keyboard shortcut and launch at login (see Settings)
+- On MacBooks with a notch, you can turn on "click the notch to open Compact"
+
+## Build it yourself
+
+You need the Swift command line tools (no Xcode required).
+
+```
+swift test              # run the tests
+scripts/build-app.sh    # makes build/Compact.app
+scripts/package-zip.sh  # makes build/Compact.zip to share
+```

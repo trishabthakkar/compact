@@ -76,12 +76,20 @@ struct SettingsView: View {
                     ForEach(WindowPosition.allCases, id: \.self) { Text(Self.positionName($0)).tag($0) }
                 }
             }
+            Section("Notch") {
+                let hasNotch = NotchTriggerController.hasNotch
+                Toggle("Click the notch to open Compact", isOn: binding(\.notchTriggerEnabled))
+                    .disabled(!hasNotch)
+                if !hasNotch {
+                    Text("This Mac's display has no notch").font(.caption).foregroundStyle(.secondary)
+                }
+            }
             Section("Snaps") {
                 Toggle("Include date", isOn: binding(\.snapIncludesDate))
             }
         }
         .formStyle(.grouped)
-        .frame(width: 440, height: 560)
+        .frame(width: 440, height: 620)
         .onAppear {
             camera.refreshDevices()
             launchAtLogin = SMAppService.mainApp.status == .enabled

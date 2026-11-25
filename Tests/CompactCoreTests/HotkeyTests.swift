@@ -21,4 +21,12 @@ struct HotkeyTests {
         d.set([1], forKey: "compact.hotkey")
         #expect(SettingsStore(defaults: d).settings.hotkey == nil)
     }
+
+    @Test func hotkeyGarbageOutOfRangeFallsBack() {
+        let d = UserDefaults(suiteName: "test.\(UUID())")!
+        d.set([5_000_000_000, 1], forKey: "compact.hotkey")
+        #expect(SettingsStore(defaults: d).settings.hotkey == nil)
+        d.set([35, 5_000_000_000], forKey: "compact.hotkey")
+        #expect(SettingsStore(defaults: d).settings.hotkey == nil)
+    }
 }

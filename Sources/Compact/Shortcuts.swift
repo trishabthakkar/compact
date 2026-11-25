@@ -67,7 +67,8 @@ struct ShortcutRecorderView: View {
             if flags.contains(.option) { mods |= Hotkey.option }
             if flags.contains(.control) { mods |= Hotkey.control }
             if flags.contains(.shift) { mods |= Hotkey.shift }
-            guard mods != 0 else { return nil }  // need at least one modifier; swallow the key
+            // Need at least one of ⌘ ⌃ ⌥ (Shift alone would hijack normal typing); swallow the key.
+            guard mods & (Hotkey.command | Hotkey.control | Hotkey.option) != 0 else { return nil }
             hotkey = Hotkey(keyCode: UInt32(event.keyCode), modifiers: mods)
             stop()
             return nil
