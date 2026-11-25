@@ -2,11 +2,14 @@ import CoreGraphics
 
 public func contentSize(size: WindowSize, shape: WindowShape) -> CGSize {
     let base: CGSize = switch size {
-    case .small: CGSize(width: 240, height: 180)
-    case .medium: CGSize(width: 320, height: 240)
-    case .large: CGSize(width: 480, height: 360)
+    // Widescreen 16:9, matching the camera's own picture.
+    case .small: CGSize(width: 256, height: 144)
+    case .medium: CGSize(width: 384, height: 216)
+    case .large: CGSize(width: 512, height: 288)
     }
-    return shape == .circle ? CGSize(width: base.width, height: base.width) : base
+    // A circle the full width of a widescreen window would be huge; use 3/4 of it.
+    let side = base.width * 3 / 4
+    return shape == .circle ? CGSize(width: side, height: side) : base
 }
 
 public func cornerRadius(shape: WindowShape, in size: CGSize) -> CGFloat {

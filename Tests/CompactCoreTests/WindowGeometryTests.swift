@@ -7,9 +7,11 @@ import CoreGraphics
     let ws = CGSize(width: 320, height: 240)
 
     @Test func sizes() {
-        #expect(contentSize(size: .medium, shape: .rounded) == CGSize(width: 320, height: 240))
-        #expect(contentSize(size: .large, shape: .circle) == CGSize(width: 480, height: 480))
-        #expect(contentSize(size: .small, shape: .square) == CGSize(width: 240, height: 180))
+        #expect(contentSize(size: .small, shape: .square) == CGSize(width: 256, height: 144))
+        #expect(contentSize(size: .medium, shape: .rounded) == CGSize(width: 384, height: 216))
+        #expect(contentSize(size: .large, shape: .capsule) == CGSize(width: 512, height: 288))
+        #expect(contentSize(size: .large, shape: .circle) == CGSize(width: 384, height: 384))
+        #expect(contentSize(size: .small, shape: .circle) == CGSize(width: 192, height: 192))
     }
 
     @Test func radii() {

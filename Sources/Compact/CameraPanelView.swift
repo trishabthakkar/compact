@@ -53,8 +53,8 @@ struct CameraPanelView: View {
 
     private var popoverBody: some View {
         VStack(spacing: 0) {
-            preview(width: 320, height: 240)
-            controlsBar(compact: false).frame(width: 320, height: 32)
+            preview(width: 384, height: 216)
+            controlsBar(compact: false).frame(width: 384, height: 32)
         }
         .background(SpaceKeyMonitor(onSpace: snap))
     }
