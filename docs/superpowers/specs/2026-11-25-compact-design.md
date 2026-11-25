@@ -70,7 +70,7 @@ scratch with Apple's frameworks; no Hand Mirror code, art, fonts, or name is reu
 - **Menu bar icons (SF Symbols):** `camera.fill` (default), `face.smiling`, `circle.inset.filled`,
   `sparkles`, `eye`. While recording: `record.circle.fill`, tinted red.
 - **Mic meter:** dB from -60 to 0 maps linearly to 0–1. Anything below -60 is 0, anything above 0 is 1.
-- **Keyboard shortcut library:** sindresorhus/KeyboardShortcuts (MIT), with no default shortcut set.
+- **Keyboard shortcut:** written with macOS's built-in Carbon hotkey API, with no default shortcut set (KeyboardShortcuts needs Xcode to build).
 - **Camera lifecycle:** the camera runs only while the popover or floating window is visible, or while
   recording.
 
