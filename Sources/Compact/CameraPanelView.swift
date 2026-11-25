@@ -51,12 +51,23 @@ struct CameraPanelView: View {
             .background(SpaceKeyMonitor(onSpace: snap))
     }
 
+    /// Buttons float over the bottom of the video: shown while the pointer is over it,
+    /// and always while recording so the stop button and timer stay visible.
     private var popoverBody: some View {
-        VStack(spacing: 0) {
-            preview(width: 384, height: 216)
-            controlsBar(compact: false).frame(width: 384, height: 32)
-        }
-        .background(SpaceKeyMonitor(onSpace: snap))
+        let showControls = hovering || recorder.state.isActive
+        return preview(width: 384, height: 216, meterBottomInset: showControls ? 36 : 0)
+            .overlay(alignment: .bottom) {
+                if showControls {
+                    controlsBar(compact: false)
+                        .frame(height: 32)
+                        .background(.black.opacity(0.55))
+                        .foregroundStyle(.white)
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.15), value: showControls)
+            .background(HoverTracker { hovering = $0 })
+            .background(SpaceKeyMonitor(onSpace: snap))
     }
 
     private func preview(width: CGFloat, height: CGFloat, meterBottomInset: CGFloat = 0, meterSideInset: CGFloat = 0) -> some View {

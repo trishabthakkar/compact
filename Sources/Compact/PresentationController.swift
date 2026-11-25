@@ -17,7 +17,7 @@ final class PresentationController: NSObject, NSPopoverDelegate {
         self.store = store
         super.init()
         popover.behavior = .transient
-        popover.contentSize = NSSize(width: 384, height: 248)
+        popover.contentSize = NSSize(width: 384, height: 216)
         popover.contentViewController = NSHostingController(
             rootView: CameraPanelView(camera: camera, recorder: recorder, store: store))
         popover.delegate = self
