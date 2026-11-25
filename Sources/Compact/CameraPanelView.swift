@@ -4,6 +4,7 @@ import CompactCore
 
 struct CameraPanelView: View {
     let camera: CameraController
+    let recorder: VlogRecorder
     let store: SettingsStore
     /// Non-nil when hosted in the floating window: controls become a hover overlay and a close button appears.
     var onClose: (() -> Void)? = nil
@@ -112,7 +113,33 @@ struct CameraPanelView: View {
         }
     }
 
-    /// Later tasks append buttons here (snap, record, folder).
+    @ViewBuilder private func recordButton(compact: Bool) -> some View {
+        if case .recording(let startedAt, _) = recorder.state {
+            Button { Task { await recorder.stop() } } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "stop.circle.fill")
+                    TimelineView(.periodic(from: startedAt, by: 1)) { ctx in
+                        Text(elapsedLabel(from: startedAt, to: ctx.date))
+                            .font(.caption.monospacedDigit())
+                    }
+                }
+                .foregroundStyle(.red)
+            }
+            .help("Stop recording")
+        } else {
+            Button { recorder.start() } label: { Image(systemName: "record.circle") }
+                .disabled(recorder.state == .stopping || camera.access != .allowed)
+                .help("Record a vlog")
+        }
+    }
+
+    private func openVlogFolder() {
+        let folder = MediaLocation.folder(for: .vlog, home: FileManager.default.homeDirectoryForCurrentUser)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(folder)
+    }
+
+    /// Controls shared by the popover and floating layouts.
     private func controlsBar(compact: Bool) -> some View {
         HStack(spacing: 12) {
             Button {
@@ -123,7 +150,12 @@ struct CameraPanelView: View {
             .help("Mic check")
             Button { snap() } label: { Image(systemName: "camera.shutter.button") }
                 .help("Snap (Space)")
+            recordButton(compact: compact)
             if !compact { Spacer() }
+            if !compact {   // the round-shape cluster is ~90pt wide; folder lives in the popover/rect bar
+                Button { openVlogFolder() } label: { Image(systemName: "folder") }
+                    .help("Open vlog folder")
+            }
         }
         .buttonStyle(.borderless)
         .padding(.horizontal, 10)

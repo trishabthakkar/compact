@@ -70,8 +70,12 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
 
     func releaseMic(_ reason: String) {
         micRequired.remove(reason)
+        if micRequired.isEmpty { audioLevel = 0 }
         applyMic()
     }
+
+    /// True while any reason (meter, vlog) needs the mic. Late level updates are dropped once false.
+    private var micIsWanted: Bool { !micRequired.isEmpty }
 
     private func applyMic() {
         microphones = Self.discoverMicrophones()
@@ -94,7 +98,7 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
                 session.removeOutput(output)
             }
             session.commitConfiguration()
-            if device == nil { Task { @MainActor in self.audioLevel = 0 } }
+            if device == nil { Task { @MainActor in if !self.micIsWanted { self.audioLevel = 0 } } }
         }
     }
 
@@ -115,7 +119,11 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
         guard !channels.isEmpty else { return }
         let avg = channels.map(\.averagePowerLevel).reduce(0, +) / Float(channels.count)
         let level = normalizedLevel(decibels: avg)
-        Task { @MainActor [weak self] in self?.audioLevel = level }
+        Task { @MainActor [weak self] in
+            // Drop late updates that arrive after the meter/mic was turned off.
+            guard let self, self.micIsWanted else { return }
+            self.audioLevel = level
+        }
     }
 
     // MARK: - Snaps
@@ -177,6 +185,40 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
         store.update { $0.cameraID = id }
         guard let device = cameras.first(where: { $0.uniqueID == id }) else { return }
         configure(with: device)
+    }
+
+    // MARK: - Movie output (vlog)
+
+    /// Adds `output` to the running session on the session queue and turns mirroring off on its video
+    /// connection. Returns a failure message if the session refuses it; the snap output is left untouched.
+    func attachMovieOutput(_ output: AVCaptureMovieFileOutput) async -> String? {
+        let session = session
+        return await withCheckedContinuation { (cont: CheckedContinuation<String?, Never>) in
+            queue.async {
+                session.beginConfiguration()
+                defer { session.commitConfiguration() }
+                guard session.canAddOutput(output) else {
+                    cont.resume(returning: "This Mac's camera can't record video while snaps are enabled.")
+                    return
+                }
+                session.addOutput(output)
+                if let conn = output.connection(with: .video) {
+                    conn.automaticallyAdjustsVideoMirroring = false
+                    if conn.isVideoMirroringSupported { conn.isVideoMirrored = false }
+                }
+                cont.resume(returning: nil)
+            }
+        }
+    }
+
+    /// Removes the movie output so an idle session stays light.
+    func detachMovieOutput(_ output: AVCaptureMovieFileOutput) {
+        let session = session
+        queue.async {
+            session.beginConfiguration()
+            if session.outputs.contains(output) { session.removeOutput(output) }
+            session.commitConfiguration()
+        }
     }
 
     // MARK: - Private

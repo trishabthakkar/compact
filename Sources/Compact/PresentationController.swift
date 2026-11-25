@@ -13,16 +13,16 @@ final class PresentationController: NSObject, NSPopoverDelegate {
 
     var isVisible: Bool { popover.isShown || floating.isVisible }
 
-    init(camera: CameraController, store: SettingsStore) {
+    init(camera: CameraController, recorder: VlogRecorder, store: SettingsStore) {
         self.store = store
         super.init()
         popover.behavior = .transient
         popover.contentSize = NSSize(width: 320, height: 272)
         popover.contentViewController = NSHostingController(
-            rootView: CameraPanelView(camera: camera, store: store))
+            rootView: CameraPanelView(camera: camera, recorder: recorder, store: store))
         popover.delegate = self
 
-        let host = NSHostingView(rootView: CameraPanelView(camera: camera, store: store, onClose: { [weak self] in
+        let host = NSHostingView(rootView: CameraPanelView(camera: camera, recorder: recorder, store: store, onClose: { [weak self] in
             self?.hide()
         }))
         host.sizingOptions = []
