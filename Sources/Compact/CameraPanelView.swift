@@ -102,7 +102,7 @@ private struct SpaceKeyMonitor: NSViewRepresentable {
                 guard let self, let win = self.window, win.isKeyWindow, event.window === win,
                       event.keyCode == 49, event.modifierFlags.intersection([.command, .option, .control]).isEmpty,
                       !(win.firstResponder is NSText) else { return event }
-                self.onSpace()
+                if !event.isARepeat { self.onSpace() }
                 return nil
             }
         }

@@ -6,6 +6,9 @@ struct SnapCardView: View {
     let image: CGImage
     let includeDate: Bool
     let date: Date
+    @Binding var strokes: [MarkerStroke]
+    var color: Color = .red
+    var drawingEnabled: Bool = false
 
     static let photoWidth: CGFloat = 320
 
@@ -23,11 +26,11 @@ struct SnapCardView: View {
         .background(Color.white)
     }
 
-    /// Task 5 overlays its canvas here.
     var photo: some View {
         Image(decorative: image, scale: 1)
             .resizable()
             .frame(width: photoSize.width, height: photoSize.height)
+            .overlay(MarkerCanvas(strokes: $strokes, color: color, enabled: drawingEnabled))
             .clipShape(RoundedRectangle(cornerRadius: 3))
     }
 

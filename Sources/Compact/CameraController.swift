@@ -9,6 +9,7 @@ import CompactCore
 final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate,
                               AVCaptureVideoDataOutputSampleBufferDelegate {
     @ObservationIgnored let session = AVCaptureSession()
+    @ObservationIgnored private nonisolated let ciContext = CIContext()
     private(set) var access: CameraAccess = .notDetermined
     private(set) var cameras: [AVCaptureDevice] = []
     private(set) var microphones: [AVCaptureDevice] = []
@@ -144,8 +145,8 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
         let ids = Array(frameWaiters.keys)
         frameLock.unlock()
         guard !ids.isEmpty, let pixels = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        let image = CIContext().createCGImage(CIImage(cvPixelBuffer: pixels),
-                                              from: CIImage(cvPixelBuffer: pixels).extent)
+        let ci = CIImage(cvPixelBuffer: pixels)
+        let image = ciContext.createCGImage(ci, from: ci.extent)
         for id in ids { resumeWaiter(id, with: image) }
     }
 
