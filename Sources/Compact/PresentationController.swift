@@ -48,6 +48,12 @@ final class PresentationController: NSObject, NSPopoverDelegate {
         }
     }
 
+    /// While recording, the popover stays open when you click elsewhere (it would normally close).
+    /// Clicking the menu bar icon still closes it on purpose.
+    func setKeepOpen(_ keepOpen: Bool) {
+        popover.behavior = keepOpen ? .applicationDefined : .transient
+    }
+
     func hide() {
         if floating.isVisible {
             floating.hide()

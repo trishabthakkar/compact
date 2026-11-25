@@ -49,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         recorder.onStateChange = { [weak self] state in
             self?.statusItem?.setRecording(state.isActive)
+            self?.presentation.setKeepOpen(state.isActive)
             self?.updateCamera()
         }
         camera.onAccessGrantedAfterPanelClosed = { [weak self] in self?.presentation.show() }
