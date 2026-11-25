@@ -5,9 +5,48 @@ import CompactCore
 struct CameraPanelView: View {
     let camera: CameraController
     let store: SettingsStore
+    /// Non-nil when hosted in the floating window: controls become a hover overlay and a close button appears.
+    var onClose: (() -> Void)? = nil
+    @State private var hovering = false
 
     var body: some View {
+        if onClose != nil { floatingBody } else { popoverBody }
+    }
+
+    private var floatingBody: some View {
+        let shape = store.settings.shape
+        let size = contentSize(size: store.settings.size, shape: shape)
+        let radius = CompactCore.cornerRadius(shape: shape, in: size)
+        return preview(width: size.width, height: size.height)
+            .overlay(alignment: .bottom) {
+                if hovering { controlsBar.background(.black.opacity(0.55)).foregroundStyle(.white) }
+            }
+            .overlay(alignment: .topTrailing) {
+                if hovering {
+                    Button { onClose?() } label: {
+                        Image(systemName: "xmark.circle.fill").font(.title3)
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(.white, .black.opacity(0.6))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(shape == .circle || shape == .capsule ? 28 : 8)
+                    .help("Close")
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .onHover { hovering = $0 }
+            .background(SpaceKeyMonitor(onSpace: snap))
+    }
+
+    private var popoverBody: some View {
         VStack(spacing: 0) {
+            preview(width: 320, height: 240)
+            controlsBar.frame(width: 320, height: 32)
+        }
+        .background(SpaceKeyMonitor(onSpace: snap))
+    }
+
+    private func preview(width: CGFloat, height: CGFloat) -> some View {
         ZStack {
             Color.black
             CameraPreviewView(session: camera.session)
@@ -29,11 +68,8 @@ struct CameraPanelView: View {
                 .background(.black.opacity(0.7))
             }
         }
-        .frame(width: 320, height: 240)
+        .frame(width: width, height: height)
         .overlay(alignment: .bottom) { micMeter }
-        controlsBar
-        }
-        .background(SpaceKeyMonitor(onSpace: snap))
     }
 
     @ViewBuilder private var micMeter: some View {
@@ -77,7 +113,7 @@ struct CameraPanelView: View {
         }
         .buttonStyle(.borderless)
         .padding(.horizontal, 10)
-        .frame(width: 320, height: 32)
+        .frame(maxWidth: .infinity, minHeight: 32, maxHeight: 32)
     }
 }
 
