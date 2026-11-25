@@ -8,12 +8,14 @@ Made for macOS 14 (Sonoma) or newer.
 
 1. Unzip `Compact.zip`.
 2. Drag `Compact` into your **Applications** folder.
-3. The first time, **right-click** Compact and choose **Open**, then click **Open** again. (Double-clicking won't work the first time because the app isn't from the App Store.)
-4. Allow **camera** and **microphone** access when your Mac asks.
+3. Open Compact once. macOS will say it can't verify the app, because it isn't from the App Store. Click **Done**.
+4. Open **System Settings → Privacy & Security**, scroll down to the message about Compact, and click **Open Anyway**. Enter your Mac password if asked, then click **Open Anyway** once more.
+   (On macOS 14 and older you can instead right-click Compact, choose **Open**, then click **Open**. macOS 15 and newer removed that shortcut.)
+5. Allow **camera** and **microphone** access when your Mac asks.
 
 Compact appears as an icon in the menu bar at the top of the screen. Click it to see yourself.
 
-### If macOS says the app is "damaged"
+### If "Open Anyway" doesn't appear, or macOS says the app is "damaged"
 
 It isn't. macOS is just being cautious about apps from outside the App Store. Open the Terminal app, paste this, and press Return:
 
@@ -21,7 +23,7 @@ It isn't. macOS is just being cautious about apps from outside the App Store. Op
 xattr -cr /Applications/Compact.app
 ```
 
-Then right-click, Open again.
+Then open Compact again.
 
 ## What it does
 
