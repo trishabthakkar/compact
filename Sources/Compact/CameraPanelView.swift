@@ -17,9 +17,21 @@ struct CameraPanelView: View {
         let shape = store.settings.shape
         let size = contentSize(size: store.settings.size, shape: shape)
         let radius = CompactCore.cornerRadius(shape: shape, in: size)
-        return preview(width: size.width, height: size.height)
+        let round = shape == .circle || shape == .capsule
+        return preview(width: size.width, height: size.height, meterBottomInset: round ? size.height * 0.25 + 40 : 0,
+                       meterSideInset: round ? radius * 0.5 : 0)
             .overlay(alignment: .bottom) {
-                if hovering { controlsBar.background(.black.opacity(0.55)).foregroundStyle(.white) }
+                if hovering {
+                    if round {
+                        controlsBar(compact: true)
+                            .padding(.horizontal, 12)
+                            .background(.black.opacity(0.55), in: Capsule())
+                            .foregroundStyle(.white)
+                            .padding(.bottom, size.height * 0.25)
+                    } else {
+                        controlsBar(compact: false).background(.black.opacity(0.55)).foregroundStyle(.white)
+                    }
+                }
             }
             .overlay(alignment: .topTrailing) {
                 if hovering {
@@ -29,24 +41,24 @@ struct CameraPanelView: View {
                             .foregroundStyle(.white, .black.opacity(0.6))
                     }
                     .buttonStyle(.plain)
-                    .padding(shape == .circle || shape == .capsule ? 28 : 8)
+                    .padding(round ? radius * 0.3 : 8)
                     .help("Close")
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .onHover { hovering = $0 }
+            .background(HoverTracker { hovering = $0 })
             .background(SpaceKeyMonitor(onSpace: snap))
     }
 
     private var popoverBody: some View {
         VStack(spacing: 0) {
             preview(width: 320, height: 240)
-            controlsBar.frame(width: 320, height: 32)
+            controlsBar(compact: false).frame(width: 320, height: 32)
         }
         .background(SpaceKeyMonitor(onSpace: snap))
     }
 
-    private func preview(width: CGFloat, height: CGFloat) -> some View {
+    private func preview(width: CGFloat, height: CGFloat, meterBottomInset: CGFloat = 0, meterSideInset: CGFloat = 0) -> some View {
         ZStack {
             Color.black
             CameraPreviewView(session: camera.session)
@@ -69,7 +81,9 @@ struct CameraPanelView: View {
             }
         }
         .frame(width: width, height: height)
-        .overlay(alignment: .bottom) { micMeter }
+        .overlay(alignment: .bottom) {
+            micMeter.padding(.horizontal, meterSideInset).padding(.bottom, meterBottomInset)
+        }
     }
 
     @ViewBuilder private var micMeter: some View {
@@ -99,7 +113,7 @@ struct CameraPanelView: View {
     }
 
     /// Later tasks append buttons here (snap, record, folder).
-    private var controlsBar: some View {
+    private func controlsBar(compact: Bool) -> some View {
         HStack(spacing: 12) {
             Button {
                 camera.setMicMeter(enabled: !camera.micMeterOn)
@@ -109,11 +123,11 @@ struct CameraPanelView: View {
             .help("Mic check")
             Button { snap() } label: { Image(systemName: "camera.shutter.button") }
                 .help("Snap (Space)")
-            Spacer()
+            if !compact { Spacer() }
         }
         .buttonStyle(.borderless)
         .padding(.horizontal, 10)
-        .frame(maxWidth: .infinity, minHeight: 32, maxHeight: 32)
+        .frame(maxWidth: compact ? nil : .infinity, minHeight: 32, maxHeight: 32)
     }
 }
 
@@ -144,5 +158,28 @@ private struct SpaceKeyMonitor: NSViewRepresentable {
         }
 
         deinit { if let monitor { NSEvent.removeMonitor(monitor) } }
+    }
+}
+
+
+/// Reliable hover regardless of key/active state (SwiftUI .onHover can miss on non-key panels).
+private struct HoverTracker: NSViewRepresentable {
+    let onChange: (Bool) -> Void
+    func makeNSView(context: Context) -> TrackerView { TrackerView(onChange: onChange) }
+    func updateNSView(_ view: TrackerView, context: Context) { view.onChange = onChange }
+
+    final class TrackerView: NSView {
+        var onChange: (Bool) -> Void
+        init(onChange: @escaping (Bool) -> Void) { self.onChange = onChange; super.init(frame: .zero) }
+        required init?(coder: NSCoder) { fatalError() }
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            trackingAreas.forEach(removeTrackingArea)
+            addTrackingArea(NSTrackingArea(rect: .zero,
+                options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil))
+        }
+        override func mouseEntered(with event: NSEvent) { onChange(true) }
+        override func mouseExited(with event: NSEvent) { onChange(false) }
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
     }
 }

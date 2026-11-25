@@ -12,6 +12,8 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
     private let store: SettingsStore
     private let panel: FloatingPanel
     private var isPlacing = false
+    private var appliedLayout: (WindowSize, WindowShape)?
+    private var saveTask: Task<Void, Never>?
 
     var isVisible: Bool { panel.isVisible }
 
@@ -31,13 +33,13 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.contentView = content
         panel.delegate = self
+        observeSettings()  // single, permanent chain; ignores changes while hidden
     }
 
     func show() {
         guard !panel.isVisible else { return }
         applyGeometry(reposition: true)
         panel.orderFrontRegardless()
-        observeSettings()
     }
 
     func hide() {
@@ -52,6 +54,7 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
     private func applyGeometry(reposition: Bool) {
         let s = store.settings
         let size = contentSize(size: s.size, shape: s.shape)
+        appliedLayout = (s.size, s.shape)
         isPlacing = true
         defer { isPlacing = false }
         if reposition {
@@ -71,8 +74,11 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
             _ = store.settings
         } onChange: { [weak self] in
             Task { @MainActor in
-                guard let self, self.panel.isVisible else { return }
-                self.applyGeometry(reposition: false)
+                guard let self else { return }
+                let st = self.store.settings
+                if self.panel.isVisible, let a = self.appliedLayout, a != (st.size, st.shape) {
+                    self.applyGeometry(reposition: false)
+                }
                 self.observeSettings()
             }
         }
@@ -80,7 +86,13 @@ final class FloatingWindowController: NSObject, NSWindowDelegate {
 
     func windowDidMove(_ notification: Notification) {
         guard !isPlacing, panel.isVisible else { return }
-        let origin = panel.frame.origin
-        store.update { $0.rememberedOrigin = origin }
+        // Debounce: persist once the drag has settled instead of on every mouse event.
+        saveTask?.cancel()
+        saveTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(300))
+            guard let self, !Task.isCancelled, self.panel.isVisible else { return }
+            let origin = self.panel.frame.origin
+            self.store.update { $0.rememberedOrigin = origin }
+        }
     }
 }
