@@ -10,6 +10,7 @@
     <key>CFBundleShortVersionString</key><string>1.0</string>
     <key>CFBundleVersion</key><string>1</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>LSUIElement</key><true/>
     <key>NSCameraUsageDescription</key><string>Compact shows your camera so you can check yourself before a call.</string>
     <key>NSMicrophoneUsageDescription</key><string>Compact uses the microphone for the mic check meter and to record vlogs.</string>
