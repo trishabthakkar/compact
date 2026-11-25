@@ -235,6 +235,8 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
     /// connection. Returns a failure message if the session refuses it; the snap output is left untouched.
     func attachMovieOutput(_ output: AVCaptureMovieFileOutput) async -> String? {
         let session = session
+        // Match what you see: the video is mirrored whenever the live preview is mirrored.
+        let mirror = store.settings.mirrorPreview
         return await withCheckedContinuation { (cont: CheckedContinuation<String?, Never>) in
             queue.async {
                 session.beginConfiguration()
@@ -246,7 +248,7 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
                 session.addOutput(output)
                 if let conn = output.connection(with: .video) {
                     conn.automaticallyAdjustsVideoMirroring = false
-                    if conn.isVideoMirroringSupported { conn.isVideoMirrored = false }
+                    if conn.isVideoMirroringSupported { conn.isVideoMirrored = mirror }
                 }
                 cont.resume(returning: nil)
             }
