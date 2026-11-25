@@ -126,9 +126,12 @@ struct CameraPanelView: View {
     private func snap() {
         NSSound(named: "Tink")?.play()
         let includeDate = store.settings.snapIncludesDate
+        let mirror = store.settings.mirrorPreview
         Task { @MainActor in
             guard let frame = await camera.captureFrame() else { NSSound.beep(); return }
-            SnapWindowController(image: frame, includeDate: includeDate, date: Date()).show()
+            // Match what you see: mirror the snap whenever the live preview is mirrored.
+            let photo = mirror ? (mirroredHorizontally(frame) ?? frame) : frame
+            SnapWindowController(image: photo, includeDate: includeDate, date: Date()).show()
         }
     }
 

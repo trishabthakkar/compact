@@ -62,8 +62,8 @@ scratch with Apple's frameworks; no Hand Mirror code, art, fonts, or name is reu
   first save.
 - **File names:** `Compact Snap 2026-11-25 at 14.03.22.png`, `Compact Vlog 2026-11-25 at 14.03.22.mov`.
   A ` (2)`, ` (3)`… suffix is added if the name is taken.
-- **Mirroring:** the preview is mirrored by default, like a real mirror (toggle in settings). Saved snaps
-  and vlogs are **not** mirrored, so text reads correctly.
+- **Mirroring:** the preview is mirrored by default, like a real mirror (toggle in settings). Snaps match the
+  preview (mirrored when it is). Vlogs are **not** mirrored, so text reads correctly.
 - **Marker font for snap captions:** "Marker Felt", which is built into macOS.
 - **Floating window sizes:** small 240×180, medium 320×240, large 480×360. Circle and square shapes use
   the width as both sides.
