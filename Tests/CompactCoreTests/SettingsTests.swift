@@ -50,7 +50,7 @@ struct SettingsTests {
 
     @Test func newSettingsDefaults() {
         let s = Settings()
-        #expect(s.menuBarIcon == .compact)
+        #expect(s.menuBarIcon == .lipstick)
         #expect(s.popoverSize == .medium)
         #expect(s.showDockIcon == false)
         #expect(s.closeOnClickOutside == true)

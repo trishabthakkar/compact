@@ -43,7 +43,7 @@ public struct Settings: Equatable, Sendable {
     public var shape: WindowShape = .rounded
     public var size: WindowSize = .medium
     public var position: WindowPosition = .topRight
-    public var menuBarIcon: MenuBarIcon = .compact
+    public var menuBarIcon: MenuBarIcon = .lipstick
     /// Size of the camera popover (16:9).
     public var popoverSize: WindowSize = .medium
     public var showDockIcon: Bool = false
