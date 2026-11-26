@@ -16,13 +16,14 @@ command -v gh >/dev/null || { echo "Install the GitHub CLI first: brew install g
 plutil -replace CFBundleShortVersionString -string "$VERSION" Resources/Info.plist
 plutil -replace CFBundleVersion -string "$(git rev-list --count HEAD)" Resources/Info.plist
 git commit -qm "release: $VERSION" Resources/Info.plist || true
-git push -q origin HEAD
+git push -q origin HEAD:main
 
 scripts/package-zip.sh
 cp scripts/install.sh build/install.sh
 shasum -a 256 build/Compact.zip | tee build/Compact.zip.sha256
 
 gh release create "v$VERSION" build/Compact.zip build/install.sh build/Compact.zip.sha256 \
+    --target "$(git rev-parse HEAD)" \
     --title "Compact $VERSION" \
     --notes "Install or update by pasting this into Terminal:
 
