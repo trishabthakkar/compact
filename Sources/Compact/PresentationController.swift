@@ -9,8 +9,8 @@ final class PresentationController: NSObject, NSPopoverDelegate {
     private let store: SettingsStore
     private var floating: FloatingWindowController!
     private weak var anchor: NSStatusBarButton?
-    /// True while recording: outside clicks don't close the popover.
-    private var keepOpen = false
+    private var isRecording = false
+    private var hasUnsavedSnap = false
     private var outsideClickMonitors: [Any] = []
     var onVisibilityChange: ((Bool) -> Void)?
 
@@ -28,7 +28,7 @@ final class PresentationController: NSObject, NSPopoverDelegate {
         popover.delegate = self
 
         let host = NSHostingView(rootView: CameraPanelView(camera: camera, recorder: recorder, store: store, onClose: { [weak self] in
-            self?.hide()
+            self?.closeOnPurpose()
         }))
         host.sizingOptions = []
         host.layer?.backgroundColor = .clear
@@ -37,7 +37,7 @@ final class PresentationController: NSObject, NSPopoverDelegate {
 
     func toggle(relativeTo button: NSStatusBarButton?) {
         if button != nil { anchor = button }
-        isVisible ? hide() : show()
+        isVisible ? closeOnPurpose() : show()
     }
 
     func show() {
@@ -56,8 +56,23 @@ final class PresentationController: NSObject, NSPopoverDelegate {
 
     /// While recording, the popover stays open when you click elsewhere (it would normally close).
     /// Clicking the menu bar icon still closes it on purpose.
-    func setKeepOpen(_ keepOpen: Bool) {
-        self.keepOpen = keepOpen
+    func setRecording(_ recording: Bool) {
+        isRecording = recording
+    }
+
+    /// While a snap is unsaved, nothing closes Compact (closing would throw the snap away).
+    func setUnsavedSnap(_ unsaved: Bool) {
+        hasUnsavedSnap = unsaved
+    }
+
+    /// Menu bar icon, shortcut or ×: closes unless a snap is unsaved, in which case the snap
+    /// gives a little shake to show why.
+    func closeOnPurpose() {
+        guard deliberateCloseAllowed(hasUnsavedSnap: hasUnsavedSnap) else {
+            SnapPopoverController.shakeCurrent()
+            return
+        }
+        hide()
     }
 
     func hide() {
@@ -109,7 +124,7 @@ final class PresentationController: NSObject, NSPopoverDelegate {
     }
 
     private func closeForOutsideClick() {
-        guard !keepOpen, popover.isShown else { return }
+        guard outsideClickCloses(isRecording: isRecording, hasUnsavedSnap: hasUnsavedSnap), popover.isShown else { return }
         popover.performClose(nil)
     }
 }

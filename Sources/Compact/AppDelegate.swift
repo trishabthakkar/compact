@@ -63,9 +63,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         recorder.onStateChange = { [weak self] state in
             self?.statusItem?.setRecording(state.isActive)
-            self?.presentation.setKeepOpen(state.isActive)
+            self?.presentation.setRecording(state.isActive)
             self?.updateCamera()
         }
+        SnapPopoverController.onUnsavedChange = { [weak self] in self?.presentation.setUnsavedSnap($0) }
         camera.onAccessGrantedAfterPanelClosed = { [weak self] in self?.presentation.show() }
         observeScreenAvailability()
         requestPermissionsUpFront()

@@ -12,7 +12,20 @@ final class SnapPopoverController: NSObject, NSPopoverDelegate {
     private let popover = NSPopover()
     private var savedURL: URL?
     private let model = SnapWindowModel()
-    private static var current: SnapPopoverController?
+    private static var current: SnapPopoverController? {
+        didSet { onUnsavedChange?(hasUnsavedSnap) }
+    }
+    /// Told whenever a snap starts or stops waiting to be saved.
+    static var onUnsavedChange: ((Bool) -> Void)?
+
+    /// True while a snap is showing that hasn't been saved yet.
+    static var hasUnsavedSnap: Bool { current.map { !$0.model.saved } ?? false }
+
+    /// A small side-to-side wiggle, used when you try to close or re-snap with a snap unsaved.
+    static func shakeCurrent() {
+        guard let model = current?.model else { return }
+        withAnimation(.linear(duration: 0.4)) { model.shakes += 1 }
+    }
     private var outsideClickMonitors: [Any] = []
 
     init(image: CGImage, includeDate: Bool, date: Date) {
@@ -33,8 +46,10 @@ final class SnapPopoverController: NSObject, NSPopoverDelegate {
         current?.popover.performClose(nil)
     }
 
-    /// Opens the snap below `anchor` (the camera view), replacing any snap already showing.
+    /// Opens the snap below `anchor` (the camera view). Callers check `hasUnsavedSnap` first,
+    /// so this only ever replaces a snap that was already saved.
     func show(below anchor: NSView) {
+        guard anchor.window?.isVisible == true else { return }   // the camera view closed meanwhile
         Self.current?.popover.performClose(nil)
         let root = SnapWindowContent(
             image: image, includeDate: includeDate, date: date,
@@ -108,6 +123,7 @@ final class SnapPopoverController: NSObject, NSPopoverDelegate {
             try png.write(to: url)
             savedURL = url
             model.saved = true
+            Self.onUnsavedChange?(Self.hasUnsavedSnap)
             startOutsideClickMonitoring()   // saved: a click anywhere else now closes it
         } catch {
             let alert = NSAlert(error: error)
@@ -121,6 +137,7 @@ final class SnapPopoverController: NSObject, NSPopoverDelegate {
 final class SnapWindowModel {
     var saved = false
     var frame: SnapFrame = .default
+    var shakes = 0
 }
 
 private struct SnapWindowContent: View {
@@ -154,5 +171,18 @@ private struct SnapWindowContent: View {
         }
         .padding(16)
         .frame(width: 384)
+        .modifier(Shake(shakes: CGFloat(model.shakes)))
+    }
+}
+
+/// Moves content side to side three times as `shakes` animates up by one.
+private struct Shake: GeometryEffect {
+    var shakes: CGFloat
+    var animatableData: CGFloat {
+        get { shakes }
+        set { shakes = newValue }
+    }
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(CGAffineTransform(translationX: 8 * sin(shakes * .pi * 6), y: 0))
     }
 }

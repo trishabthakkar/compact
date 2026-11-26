@@ -137,6 +137,8 @@ struct CameraPanelView: View {
                 byReference: true) ?? NSSound(named: "Tink")
 
     private func snap() {
+        // Finish with the snap that's showing first, so it isn't replaced and lost.
+        guard !SnapPopoverController.hasUnsavedSnap else { SnapPopoverController.shakeCurrent(); return }
         if store.settings.snapShutterSound {
             Self.shutterSound?.stop()   // restart if a previous click is still playing
             Self.shutterSound?.play()
