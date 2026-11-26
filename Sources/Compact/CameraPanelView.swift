@@ -57,7 +57,7 @@ struct CameraPanelView: View {
     }
 
     private var floatingBody: some View {
-        let showControls = hovering || recorder.state.isActive   // stop button stays visible while recording
+        let showControls = hovering || recorder.state.isActive || store.settings.alwaysShowControls
         let shape = store.settings.shape
         let size = contentSize(size: store.settings.size, shape: shape)
         let radius = CompactCore.cornerRadius(shape: shape, in: size)
@@ -98,8 +98,9 @@ struct CameraPanelView: View {
     /// Buttons float over the bottom of the video: shown while the pointer is over it,
     /// and always while recording so the stop button and timer stay visible.
     private var popoverBody: some View {
-        let showControls = hovering || recorder.state.isActive
-        return preview(width: 384, height: 216, meterBottomInset: showControls ? 36 : 0)
+        let showControls = hovering || recorder.state.isActive || store.settings.alwaysShowControls
+        let size = contentSize(size: store.settings.popoverSize, shape: .rounded)
+        return preview(width: size.width, height: size.height, meterBottomInset: showControls ? 36 : 0)
             .overlay(alignment: .bottom) {
                 if showControls {
                     controlsBar(compact: false)
@@ -200,6 +201,7 @@ struct CameraPanelView: View {
         withAnimation(.easeOut(duration: 0.5)) { flash = 0 }
         let includeDate = store.settings.snapIncludesDate
         let mirror = store.settings.mirrorPreview
+        let startFrame = store.settings.defaultSnapFrame
         Self.snapInFlight = true
         Task { @MainActor in
             defer { Self.snapInFlight = false }
@@ -210,7 +212,7 @@ struct CameraPanelView: View {
             // Match what you see: mirror the snap whenever the live preview is mirrored.
             let photo = mirror ? (mirroredHorizontally(frame) ?? frame) : frame
             guard let anchor else { return }
-            SnapPopoverController(image: photo, includeDate: includeDate, date: Date()).show(below: anchor)
+            SnapPopoverController(image: photo, includeDate: includeDate, date: Date(), frame: startFrame).show(below: anchor)
         }
     }
 

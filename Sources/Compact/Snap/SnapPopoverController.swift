@@ -15,8 +15,9 @@ final class SnapPopoverController: NSObject, NSPopoverDelegate {
     private static var current: SnapPopoverController?
     private var outsideClickMonitors: [Any] = []
 
-    init(image: CGImage, includeDate: Bool, date: Date) {
+    init(image: CGImage, includeDate: Bool, date: Date, frame: SnapFrame = .default) {
         self.image = image
+        model.frame = frame
         self.includeDate = includeDate
         self.date = date
         super.init()

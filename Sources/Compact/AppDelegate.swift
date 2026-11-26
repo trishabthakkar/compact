@@ -19,7 +19,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var settingsWindow = SettingsWindowController { [unowned self] in
         SettingsView(store: store, camera: camera, recorder: recorder, hotkey: hotkey,
                      onIconChanged: { [weak self] in self?.statusItem?.refreshIcon() },
-                     onWindowModeChanged: { [weak self] in self?.presentation.hide() })
+                     onWindowModeChanged: { [weak self] in self?.presentation.hide() },
+                     onDockIconChanged: { [weak self] in self?.applyDockIcon() })
     }
     private var panelVisible = false
     private var cameraRunning = false
@@ -63,7 +64,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Shows or hides Compact's Dock icon (Settings → General → Show Dock icon).
+    private func applyDockIcon() {
+        NSApp.setActivationPolicy(store.settings.showDockIcon ? .regular : .accessory)
+    }
+
+    /// Clicking the Dock icon (when shown) opens Compact.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        presentation.show(from: statusItem?.button)
+        return false
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        applyDockIcon()
+        // `open Compact.app --args --open-settings` jumps straight to Settings (handy for checking it).
+        if CommandLine.arguments.contains("--open-settings") {
+            DispatchQueue.main.async { self.settingsWindow.show() }
+        }
         presentation.onVisibilityChange = { [weak self] visible in
             self?.panelVisible = visible
             self?.updateCamera()

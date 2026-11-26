@@ -27,8 +27,9 @@ final class StatusItemController: NSObject {
     }
 
     func refreshIcon() {
-        let name = isRecording ? "record.circle.fill" : store.settings.menuBarIcon.symbolName
-        let image = NSImage(systemSymbolName: name, accessibilityDescription: "Compact")
+        let image = isRecording
+            ? NSImage(systemSymbolName: "record.circle.fill", accessibilityDescription: "Compact is recording")
+            : store.settings.menuBarIcon.image
         image?.isTemplate = true
         statusItem.button?.image = image
         statusItem.button?.contentTintColor = isRecording ? .systemRed : nil

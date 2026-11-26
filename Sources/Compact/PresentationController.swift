@@ -55,6 +55,7 @@ final class PresentationController: NSObject, NSPopoverDelegate {
             onVisibilityChange?(true)
         } else {
             guard let button = anchor else { return }
+            popover.contentSize = contentSize(size: store.settings.popoverSize, shape: .rounded)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             NSApp.activate()
             startOutsideClickMonitoring()
@@ -122,7 +123,7 @@ final class PresentationController: NSObject, NSPopoverDelegate {
     }
 
     private func closeForOutsideClick() {
-        guard outsideClickCloses(isRecording: isRecording), popover.isShown else { return }
+        guard store.settings.closeOnClickOutside, outsideClickCloses(isRecording: isRecording), popover.isShown else { return }
         popover.performClose(nil)
     }
 }

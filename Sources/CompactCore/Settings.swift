@@ -10,15 +10,30 @@ public enum WindowPosition: String, CaseIterable, Sendable {
 }
 
 public enum MenuBarIcon: String, CaseIterable, Sendable {
-    case camera, smile, dot, sparkles, eye
+    case compact, lipstick, bow, camera, smile, dot, sparkles, eye
 
-    public var symbolName: String {
+    /// The SF Symbol to use, or nil for icons Compact draws itself (compact, lipstick, bow).
+    public var symbolName: String? {
         switch self {
+        case .compact, .lipstick, .bow: nil
         case .camera: "camera.fill"
         case .smile: "face.smiling"
         case .dot: "circle.inset.filled"
         case .sparkles: "sparkles"
         case .eye: "eye"
+        }
+    }
+
+    public var displayName: String {
+        switch self {
+        case .compact: "Compact"
+        case .lipstick: "Lipstick"
+        case .bow: "Bow"
+        case .camera: "Camera"
+        case .smile: "Smile"
+        case .dot: "Dot"
+        case .sparkles: "Sparkles"
+        case .eye: "Eye"
         }
     }
 }
@@ -28,7 +43,16 @@ public struct Settings: Equatable, Sendable {
     public var shape: WindowShape = .rounded
     public var size: WindowSize = .medium
     public var position: WindowPosition = .topRight
-    public var menuBarIcon: MenuBarIcon = .camera
+    public var menuBarIcon: MenuBarIcon = .compact
+    /// Size of the camera popover (16:9).
+    public var popoverSize: WindowSize = .medium
+    public var showDockIcon: Bool = false
+    /// true: clicking outside closes the popover. false: only the menu bar icon/shortcut does.
+    public var closeOnClickOutside: Bool = true
+    /// true: the buttons always show over the video; false: they appear on hover.
+    public var alwaysShowControls: Bool = false
+    /// The frame a new snap starts with.
+    public var defaultSnapFrame: SnapFrame = .none
     public var mirrorPreview: Bool = true
     public var showMicMeter: Bool = false
     public var snapIncludesDate: Bool = true
@@ -74,6 +98,11 @@ public final class SettingsStore {
         s.size = raw("size", s.size)
         s.position = raw("position", s.position)
         s.menuBarIcon = raw("menuBarIcon", s.menuBarIcon)
+        s.popoverSize = raw("popoverSize", s.popoverSize)
+        s.showDockIcon = bool("showDockIcon", s.showDockIcon)
+        s.closeOnClickOutside = bool("closeOnClickOutside", s.closeOnClickOutside)
+        s.alwaysShowControls = bool("alwaysShowControls", s.alwaysShowControls)
+        s.defaultSnapFrame = raw("defaultSnapFrame", s.defaultSnapFrame)
         s.mirrorPreview = bool("mirrorPreview", s.mirrorPreview)
         s.showMicMeter = bool("showMicMeter", s.showMicMeter)
         s.snapIncludesDate = bool("snapIncludesDate", s.snapIncludesDate)
@@ -101,6 +130,11 @@ public final class SettingsStore {
         set("size", s.size.rawValue)
         set("position", s.position.rawValue)
         set("menuBarIcon", s.menuBarIcon.rawValue)
+        set("popoverSize", s.popoverSize.rawValue)
+        set("showDockIcon", s.showDockIcon)
+        set("closeOnClickOutside", s.closeOnClickOutside)
+        set("alwaysShowControls", s.alwaysShowControls)
+        set("defaultSnapFrame", s.defaultSnapFrame.rawValue)
         set("mirrorPreview", s.mirrorPreview)
         set("showMicMeter", s.showMicMeter)
         set("snapIncludesDate", s.snapIncludesDate)
