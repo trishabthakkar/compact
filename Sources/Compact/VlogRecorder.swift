@@ -16,6 +16,9 @@ final class VlogRecorder {
     @ObservationIgnored private var delegate: Delegate?
     @ObservationIgnored private var recordingID: UUID?
     @ObservationIgnored private var didStartRecording = false
+    @ObservationIgnored private var currentURL: URL?
+    /// The most recently saved video (drives the "Saved" note in the panel).
+    private(set) var lastSaved: URL?
     @ObservationIgnored private var finishWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(camera: CameraController) { self.camera = camera }
@@ -59,13 +62,13 @@ final class VlogRecorder {
         let id = UUID()
         self.output = output
         recordingID = id
+        currentURL = url
         didStartRecording = false
         camera.requireMic("vlog")
         set(.recording(startedAt: Date(), url: url))   // camera must stay on from now
         Task { @MainActor in
             let failure = await camera.attachMovieOutput(output)
-            guard self.recordingID == id, case .recording = self.state else {
-                // Stopped/failed before we got here: this task owns the leftover attachment.
+            guard self.recordingID == id else {
                 if failure == nil { self.camera.detachMovieOutput(output) }
                 return
             }
@@ -74,13 +77,17 @@ final class VlogRecorder {
                 self.fail(failure)
                 return
             }
+            if self.state == .stopping {
+                // Stop was pressed before recording began: nothing was written, so just tidy up.
+                self.finished(id: id, error: nil)
+                return
+            }
             let delegate = Delegate { [weak self] error in
                 Task { @MainActor in self?.finished(id: id, error: error) }
             }
             self.delegate = delegate
             let started = await self.camera.startMovieRecording(output, to: url, delegate: delegate)
-            guard self.recordingID == id, case .recording = self.state else {
-                // Stopped while starting: end the orphaned recording; its callback is ignored.
+            guard self.recordingID == id else {
                 if started { output.stopRecording() }
                 return
             }
@@ -90,19 +97,24 @@ final class VlogRecorder {
                 return
             }
             self.didStartRecording = true
+            if self.state == .stopping {
+                // Stop was pressed while recording was starting: stop now and let the file finish.
+                self.stopAndWatch(output, id: id)
+            }
         }
     }
 
-    /// Resolves once the file has been finalized (immediately if not recording).
+    /// Resolves once the video has finished saving (immediately if not recording). If stop is
+    /// pressed while recording is still starting, this waits for it to start and then stops it,
+    /// so the file is always finished properly.
     func stop() async {
         switch state {
         case .recording:
             set(.stopping)
-            if didStartRecording, let output {
-                output.stopRecording()   // always wait for the delegate once started
-            } else {
-                finished(id: recordingID, error: nil)   // never started: the start task detaches the output
+            if didStartRecording, let output, let id = recordingID {
+                stopAndWatch(output, id: id)
             }
+            // Otherwise the start task sees `.stopping` and finishes things off when it's safe.
         case .stopping: break
         default: return
         }
@@ -110,17 +122,46 @@ final class VlogRecorder {
         await withCheckedContinuation { finishWaiters.append($0) }
     }
 
+    /// Stops the file output and, if it never confirms the file is finished, gives up after
+    /// 10 seconds instead of staying stuck in "stopping" with the camera on.
+    private func stopAndWatch(_ output: AVCaptureMovieFileOutput, id: UUID) {
+        output.stopRecording()
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(10))
+            guard self.recordingID == id, self.state == .stopping else { return }
+            self.cleanup()
+            self.fail("Compact couldn't finish saving the video. It may be incomplete.")
+        }
+    }
+
     private func finished(id: UUID?, error: Error?) {
         guard state.isActive, id == recordingID else { return }
         // AVFoundation reports some errors (e.g. disk full) with the file still finished OK.
         let fileOK = (error as NSError?)?.userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool ?? (error == nil)
-        let started = didStartRecording
+        let url = currentURL
         cleanup()
-        if let error, !fileOK, started {
-            fail("Recording stopped: \(error.localizedDescription)")
-        } else {
+        let outcome = RecordingOutcome(errorMessage: error?.localizedDescription, fileFinishedOK: fileOK,
+                                       fileExists: url.map { FileManager.default.fileExists(atPath: $0.path) } ?? false)
+        switch outcome {
+        case .failed(let reason):
+            fail("Recording stopped: \(reason)")
+        case .stoppedEarly(let reason):
+            lastSaved = url
+            set(.idle)
+            resumeWaiters()
+            showAlert(title: "Recording stopped early",
+                      message: "\(reason)\n\nWhat was recorded so far was saved to Movies → Compact.")
+            return
+        case .saved:
+            lastSaved = url
+            set(.idle)
+        case .nothingRecorded:
             set(.idle)
         }
+        resumeWaiters()
+    }
+
+    private func resumeWaiters() {
         let waiters = finishWaiters
         finishWaiters = []
         waiters.forEach { $0.resume() }
@@ -131,19 +172,22 @@ final class VlogRecorder {
         output = nil
         delegate = nil
         recordingID = nil
+        currentURL = nil
         didStartRecording = false
         camera.releaseMic("vlog")
     }
 
     private func fail(_ message: String) {
         set(.failed(message: message))
+        resumeWaiters()   // before the alert, so a pending quit isn't held up
+        showAlert(title: "Recording failed", message: message)
+    }
+
+    private func showAlert(title: String, message: String) {
         let alert = NSAlert()
-        alert.messageText = "Recording failed"
+        alert.messageText = title
         alert.informativeText = message
         alert.alertStyle = .warning
-        let waiters = finishWaiters
-        finishWaiters = []
-        waiters.forEach { $0.resume() }   // resume before the modal so a pending quit isn't held up
         NSApp.activate()
         alert.runModal()
     }

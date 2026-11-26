@@ -17,3 +17,24 @@ import Foundation
         #expect(elapsedLabel(from: start, to: start.addingTimeInterval(seconds)) == expected)
     }
 }
+
+@Suite struct RecordingOutcomeTests {
+    @Test func cleanFinishIsSaved() {
+        #expect(RecordingOutcome(errorMessage: nil, fileFinishedOK: true, fileExists: true) == .saved)
+    }
+    @Test func errorButFileFinishedIsSavedEarly() {
+        #expect(RecordingOutcome(errorMessage: "Disk full", fileFinishedOK: true, fileExists: true)
+                == .stoppedEarly(reason: "Disk full"))
+    }
+    @Test func errorAndBrokenFileFails() {
+        #expect(RecordingOutcome(errorMessage: "Device gone", fileFinishedOK: false, fileExists: true)
+                == .failed(reason: "Device gone"))
+    }
+    @Test func errorAndNoFileFails() {
+        #expect(RecordingOutcome(errorMessage: "No permission", fileFinishedOK: false, fileExists: false)
+                == .failed(reason: "No permission"))
+    }
+    @Test func stoppedBeforeAnythingWasWritten() {
+        #expect(RecordingOutcome(errorMessage: nil, fileFinishedOK: true, fileExists: false) == .nothingRecorded)
+    }
+}
