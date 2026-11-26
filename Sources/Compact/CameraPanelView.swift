@@ -13,6 +13,9 @@ struct CameraPanelView: View {
     /// Set once the first-launch hint has been shown.
     @AppStorage("compact.welcomeShown") private var welcomeShown = false
     @State private var showWelcome = false
+    /// Short notes shown at the top of the view ("Saved…", "Couldn't take the snap").
+    @State private var note: String?
+    @State private var noteURL: URL?
     @State private var hovering = false
     /// The camera view's AppKit view, used to attach the snap pop-up just below it.
     @State private var anchor: NSView?
@@ -25,14 +28,25 @@ struct CameraPanelView: View {
         }
         .background(ViewAnchor { anchor = $0 })
         .overlay(alignment: .top) {
-            if showWelcome {
-                Text("Compact lives up here in your menu bar. Use ⚙︎ for settings.")
-                    .font(.caption).foregroundStyle(.white)
-                    .padding(.horizontal, 10).padding(.vertical, 6)
-                    .background(.black.opacity(0.7), in: Capsule())
-                    .padding(.top, 8)
-                    .transition(.opacity)
+            VStack(spacing: 6) {
+                if showWelcome {
+                    banner(Text("Compact lives up here in your menu bar. Use ⚙︎ for settings."))
+                }
+                if let note {
+                    banner(HStack(spacing: 8) {
+                        Text(note)
+                        if let noteURL {
+                            Button("Show") { NSWorkspace.shared.activateFileViewerSelecting([noteURL]) }
+                                .buttonStyle(.borderless).foregroundStyle(.white).underline()
+                        }
+                    })
+                }
             }
+            .padding(.top, 8)
+        }
+        .onChange(of: recorder.lastSaved) { _, url in
+            guard let url else { return }
+            showNote("Saved to Movies → Compact", url: url)
         }
         .onAppear {
             guard !welcomeShown else { return }
@@ -159,7 +173,24 @@ struct CameraPanelView: View {
         NSSound(contentsOfFile: "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Shutter.aif",
                 byReference: true) ?? NSSound(named: "Tink")
 
+    private func banner(_ content: some View) -> some View {
+        content
+            .font(.caption).foregroundStyle(.white)
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .background(.black.opacity(0.7), in: Capsule())
+            .transition(.opacity)
+    }
+
+    private func showNote(_ text: String, url: URL? = nil) {
+        withAnimation { note = text; noteURL = url }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+            if note == text { withAnimation { note = nil; noteURL = nil } }
+        }
+    }
+
     private func snap() {
+        // No camera picture, no snap (and no flash pretending it worked).
+        guard camera.access == .allowed else { NSSound.beep(); return }
         // Finish with the snap that's showing first, so it isn't replaced and lost.
         guard !SnapPopoverController.hasUnsavedSnap else { SnapPopoverController.shakeCurrent(); return }
         if store.settings.snapShutterSound {
@@ -171,7 +202,10 @@ struct CameraPanelView: View {
         let includeDate = store.settings.snapIncludesDate
         let mirror = store.settings.mirrorPreview
         Task { @MainActor in
-            guard let frame = await camera.captureFrame() else { NSSound.beep(); return }
+            guard let frame = await camera.captureFrame() else {
+                showNote("Couldn't take the snap. Try again.")
+                return
+            }
             // Match what you see: mirror the snap whenever the live preview is mirrored.
             let photo = mirror ? (mirroredHorizontally(frame) ?? frame) : frame
             guard let anchor else { return }
@@ -184,6 +218,11 @@ struct CameraPanelView: View {
             Button { Task { await recorder.stop() } } label: {
                 HStack(spacing: 3) {
                     Image(systemName: "stop.circle.fill")
+                    if !camera.micAttached {
+                        Image(systemName: "mic.slash.fill")
+                            .help("Recording without sound: no microphone is connected")
+                            .accessibilityLabel("Recording without sound")
+                    }
                     TimelineView(.periodic(from: startedAt, by: 1)) { ctx in
                         Text(elapsedLabel(from: startedAt, to: ctx.date))
                             .font(.caption.monospacedDigit())

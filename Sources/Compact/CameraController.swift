@@ -1,3 +1,4 @@
+import AppKit
 import AVFoundation
 import CoreImage
 import Foundation
@@ -17,6 +18,8 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
     private(set) var audioLevel: Double = 0
     private(set) var micDenied = false
     private(set) var micMeterOn = false
+    /// Whether a microphone is actually connected to the session (false → a vlog would have no sound).
+    private(set) var micAttached = false
 
     /// Called when the user allowed camera access from the system prompt after the panel that triggered the
     /// request was already closed by the dialog; the owner should reopen the panel.
@@ -40,6 +43,7 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
         self.store = store
         super.init()
         refresh()
+        observeCameraChanges()
     }
 
     /// Re-reads the device lists (no permission needed) so Settings pickers are current.
@@ -133,6 +137,8 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
                 session.removeOutput(output)
             }
             session.commitConfiguration()
+            let micIsIn = attached
+            Task { @MainActor in self.micAttached = micIsIn }
             if !meter { Task { @MainActor in if !self.micIsWanted { self.audioLevel = 0 } } }
         }
     }
@@ -281,6 +287,48 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
             if session.outputs.contains(output) { session.removeOutput(output) }
             session.commitConfiguration()
         }
+    }
+
+    // MARK: - Camera problems
+
+    /// Notices a camera being unplugged, taken by another app or failing, and permission being
+    /// changed in System Settings, so the panel shows a message and recovers on its own.
+    private func observeCameraChanges() {
+        let center = NotificationCenter.default
+        let recover: [Notification.Name] = [AVCaptureDevice.wasConnectedNotification,
+                                           AVCaptureDevice.wasDisconnectedNotification,
+                                           NSApplication.didBecomeActiveNotification]
+        for name in recover {
+            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.recoverIfNeeded() }
+            }
+        }
+        center.addObserver(forName: AVCaptureSession.runtimeErrorNotification, object: session, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.cameraLost() }
+        }
+    }
+
+    /// Restarts the camera if it should be running but isn't (or its device went away). Never
+    /// touches the session during a recording, since that would break the video file.
+    private func recoverIfNeeded() {
+        let before = access
+        refresh()
+        guard wantsRunning, !micRequired.contains("vlog"), access == .allowed,
+              let device = preferredDevice() else { return }
+        let session = session
+        queue.async { [weak self] in
+            let healthy = session.isRunning && session.inputs.contains {
+                guard let input = $0 as? AVCaptureDeviceInput else { return false }
+                return input.device.hasMediaType(.video) && input.device.isConnected
+            }
+            if healthy && before == .allowed { return }
+            Task { @MainActor in self?.configure(with: device) }
+        }
+    }
+
+    private func cameraLost() {
+        refresh()
+        if access == .allowed { access = .noCamera }
     }
 
     // MARK: - Private
