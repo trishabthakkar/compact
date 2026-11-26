@@ -76,7 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.presentation.setRecording(state.isActive)
             self?.updateCamera()
             // Camera problems are left alone during a recording; deal with them once it's over.
-            if !state.isActive { self?.camera.recoverIfNeeded() }
+            if !state.isActive, self?.recorder.isFinishingLate == false { self?.camera.recoverIfNeeded() }
         }
         SnapPopoverController.onUnsavedChange = { [weak self] in self?.presentation.setUnsavedSnap($0) }
         camera.onAccessGrantedAfterPanelClosed = { [weak self] in self?.presentation.show() }

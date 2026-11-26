@@ -21,6 +21,8 @@ final class VlogRecorder {
     @ObservationIgnored private var abandoned: (id: UUID, url: URL?, output: AVCaptureMovieFileOutput?, delegate: Delegate?)?
     /// The most recently saved video (drives the "Saved" note in the panel).
     private(set) var lastSaved: URL?
+    /// A video we stopped waiting for may still be finishing; don't reconfigure the camera meanwhile.
+    var isFinishingLate: Bool { abandoned != nil }
     @ObservationIgnored private var finishWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(camera: CameraController) { self.camera = camera }
@@ -59,6 +61,11 @@ final class VlogRecorder {
         } catch {
             fail("Compact couldn't save to your Movies folder: \(error.localizedDescription)")
             return
+        }
+        if let stale = abandoned {
+            // A previous recording never confirmed it finished: let it go so it can't block this one.
+            if let old = stale.output { camera.detachMovieOutput(old) }
+            abandoned = nil
         }
         let output = AVCaptureMovieFileOutput()
         let id = UUID()

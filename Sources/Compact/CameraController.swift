@@ -229,6 +229,9 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
 
     func stop() {
         wantsRunning = false
+        // Next open reconfigures from scratch, so forget the old problem and allow fresh retries.
+        sessionLost = false
+        recoveryAttempts = 0
         let session = session
         queue.async { if session.isRunning { session.stopRunning() } }
     }
@@ -405,13 +408,15 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
                 Task { @MainActor in self?.access = .noCamera }
                 return
             }
-            Task { @MainActor in
-                guard let self, self.sessionLost else { return }
-                self.sessionLost = false
-                self.recoveryAttempts = 0
-                self.refresh()
-            }
             if shouldRun, !session.isRunning { session.startRunning() }
+            // Only a session that actually started counts as recovered (retries stay capped otherwise).
+            if session.isRunning {
+                Task { @MainActor in
+                    guard let self, self.sessionLost else { return }
+                    self.sessionLost = false
+                    self.refresh()
+                }
+            }
         }
     }
 
