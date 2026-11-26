@@ -17,6 +17,8 @@ final class VlogRecorder {
     @ObservationIgnored private var recordingID: UUID?
     @ObservationIgnored private var didStartRecording = false
     @ObservationIgnored private var currentURL: URL?
+    /// A recording whose finish we stopped waiting for (watchdog); a late finish still counts.
+    @ObservationIgnored private var abandoned: (id: UUID, url: URL?, output: AVCaptureMovieFileOutput?, delegate: Delegate?)?
     /// The most recently saved video (drives the "Saved" note in the panel).
     private(set) var lastSaved: URL?
     @ObservationIgnored private var finishWaiters: [CheckedContinuation<Void, Never>] = []
@@ -92,8 +94,12 @@ final class VlogRecorder {
                 return
             }
             guard started else {
-                self.cleanup()
-                self.fail("Compact couldn't start recording. Close any other app using the camera and try again.")
+                if self.state == .stopping {
+                    self.finished(id: id, error: nil)   // you pressed stop while it was starting: no error
+                } else {
+                    self.cleanup()
+                    self.fail("Compact couldn't start recording. Close any other app using the camera and try again.")
+                }
                 return
             }
             self.didStartRecording = true
@@ -129,12 +135,24 @@ final class VlogRecorder {
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(10))
             guard self.recordingID == id, self.state == .stopping else { return }
+            // Stop waiting so the camera can turn off, but keep listening: if the file does finish
+            // later, it's still counted as saved.
+            // Keep the output (and its delegate) alive and attached so the file can still finish.
+            self.abandoned = (id, self.currentURL, self.output, self.delegate)
+            self.output = nil
             self.cleanup()
-            self.fail("Compact couldn't finish saving the video. It may be incomplete.")
+            self.fail("Compact is taking longer than usual to finish saving the video. It may be incomplete.")
         }
     }
 
     private func finished(id: UUID?, error: Error?) {
+        if let late = abandoned, late.id == id {
+            // A recording we stopped waiting for has finished after all.
+            abandoned = nil
+            if let output = late.output { camera.detachMovieOutput(output) }
+            if let url = late.url, FileManager.default.fileExists(atPath: url.path) { lastSaved = url }
+            return
+        }
         guard state.isActive, id == recordingID else { return }
         // AVFoundation reports some errors (e.g. disk full) with the file still finished OK.
         let fileOK = (error as NSError?)?.userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool ?? (error == nil)

@@ -20,6 +20,11 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
     private(set) var micMeterOn = false
     /// Whether a microphone is actually connected to the session (false → a vlog would have no sound).
     private(set) var micAttached = false
+    /// True while the mic is being connected, so the "no sound" icon doesn't flicker at the start.
+    private(set) var micSettingUp = false
+    /// Set when the camera stopped working (unplugged, error); cleared once it's running again.
+    @ObservationIgnored private var sessionLost = false
+    @ObservationIgnored private var recoveryAttempts = 0
 
     /// Called when the user allowed camera access from the system prompt after the panel that triggered the
     /// request was already closed by the dialog; the owner should reopen the panel.
@@ -80,6 +85,7 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
     /// Keeps the mic input attached for `reason` (e.g. "vlog") until released.
     func requireMic(_ reason: String) {
         micRequired.insert(reason)
+        micSettingUp = true
         guard AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined else {
             micDenied = AVCaptureDevice.authorizationStatus(for: .audio) != .authorized
             applyMic()
@@ -138,7 +144,7 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
             }
             session.commitConfiguration()
             let micIsIn = attached
-            Task { @MainActor in self.micAttached = micIsIn }
+            Task { @MainActor in self.micAttached = micIsIn; self.micSettingUp = false }
             if !meter { Task { @MainActor in if !self.micIsWanted { self.audioLevel = 0 } } }
         }
     }
@@ -309,34 +315,49 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
     }
 
     /// Restarts the camera if it should be running but isn't (or its device went away). Never
-    /// touches the session during a recording, since that would break the video file.
-    private func recoverIfNeeded() {
-        let before = access
+    /// touches the session during a recording, since that would break the video file; the owner
+    /// calls this again once a recording ends.
+    func recoverIfNeeded() {
         refresh()
-        guard wantsRunning, !micRequired.contains("vlog"), access == .allowed,
+        guard wantsRunning, !micRequired.contains("vlog"),
+              AVCaptureDevice.authorizationStatus(for: .video) == .authorized,
               let device = preferredDevice() else { return }
-        let session = session
+        let session = session, lost = sessionLost
         queue.async { [weak self] in
             let healthy = session.isRunning && session.inputs.contains {
                 guard let input = $0 as? AVCaptureDeviceInput else { return false }
                 return input.device.hasMediaType(.video) && input.device.isConnected
             }
-            if healthy && before == .allowed { return }
-            Task { @MainActor in self?.configure(with: device) }
+            if healthy && !lost { return }
+            Task { @MainActor in
+                // Re-check: a recording may have started, or the panel closed, meanwhile.
+                guard let self, self.wantsRunning, !self.micRequired.contains("vlog") else { return }
+                self.configure(with: device)
+            }
         }
     }
 
+    /// The camera stopped working: show the message, then try to bring it back a few times
+    /// (errors like another app grabbing the camera often come without an unplug event).
     private func cameraLost() {
+        sessionLost = true
         refresh()
-        if access == .allowed { access = .noCamera }
+        guard !micRequired.contains("vlog"), recoveryAttempts < 3 else { return }
+        recoveryAttempts += 1
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            self.recoverIfNeeded()
+        }
     }
 
     // MARK: - Private
 
     private func refresh() {
         cameras = Self.discoverCameras()
-        access = .from(status: AVCaptureDevice.authorizationStatus(for: .video),
-                       hasDevice: !cameras.isEmpty)
+        let fresh = CameraAccess.from(status: AVCaptureDevice.authorizationStatus(for: .video),
+                                      hasDevice: !cameras.isEmpty)
+        // Keep showing the problem until the camera is actually running again.
+        access = (sessionLost && fresh == .allowed) ? .noCamera : fresh
     }
 
     private func startIfAllowed() {
@@ -383,6 +404,12 @@ final class CameraController: NSObject, AVCaptureAudioDataOutputSampleBufferDele
             if !added {
                 Task { @MainActor in self?.access = .noCamera }
                 return
+            }
+            Task { @MainActor in
+                guard let self, self.sessionLost else { return }
+                self.sessionLost = false
+                self.recoveryAttempts = 0
+                self.refresh()
             }
             if shouldRun, !session.isRunning { session.startRunning() }
         }

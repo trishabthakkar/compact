@@ -46,10 +46,10 @@ final class SnapPopoverController: NSObject, NSPopoverDelegate {
         current?.popover.performClose(nil)
     }
 
-    /// Opens the snap below `anchor` (the camera view). Callers check `hasUnsavedSnap` first,
-    /// so this only ever replaces a snap that was already saved.
+    /// Opens the snap below `anchor` (the camera view), replacing a snap only if it was saved.
     func show(below anchor: NSView) {
         guard anchor.window?.isVisible == true else { return }   // the camera view closed meanwhile
+        guard !Self.hasUnsavedSnap else { Self.shakeCurrent(); return }   // never replace an unsaved snap
         Self.current?.popover.performClose(nil)
         let root = SnapWindowContent(
             image: image, includeDate: includeDate, date: date,

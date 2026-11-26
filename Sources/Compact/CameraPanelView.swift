@@ -11,8 +11,10 @@ struct CameraPanelView: View {
     /// Opens the Settings window (from the ⚙︎ menu).
     var onOpenSettings: () -> Void = {}
     /// Set once the first-launch hint has been shown.
-    @AppStorage("compact.welcomeShown") private var welcomeShown = false
-    @State private var showWelcome = false
+    /// Set by the app on first launch; the hint shows for a few seconds, then clears.
+    @AppStorage("compact.showWelcomeHint") private var showWelcome = false
+    /// A snap is being taken (waiting for the camera frame); blocks a second, overlapping snap.
+    @MainActor private static var snapInFlight = false
     /// Short notes shown at the top of the view ("Saved…", "Couldn't take the snap").
     @State private var note: String?
     @State private var noteURL: URL?
@@ -48,10 +50,8 @@ struct CameraPanelView: View {
             guard let url else { return }
             showNote("Saved to Movies → Compact", url: url)
         }
-        .onAppear {
-            guard !welcomeShown else { return }
-            welcomeShown = true
-            withAnimation { showWelcome = true }
+        .onChange(of: showWelcome, initial: true) { _, showing in
+            guard showing else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 6) { withAnimation { showWelcome = false } }
         }
     }
@@ -192,7 +192,10 @@ struct CameraPanelView: View {
         // No camera picture, no snap (and no flash pretending it worked).
         guard camera.access == .allowed else { NSSound.beep(); return }
         // Finish with the snap that's showing first, so it isn't replaced and lost.
-        guard !SnapPopoverController.hasUnsavedSnap else { SnapPopoverController.shakeCurrent(); return }
+        guard !SnapPopoverController.hasUnsavedSnap, !Self.snapInFlight else {
+            SnapPopoverController.shakeCurrent()
+            return
+        }
         if store.settings.snapShutterSound {
             Self.shutterSound?.stop()   // restart if a previous click is still playing
             Self.shutterSound?.play()
@@ -201,7 +204,9 @@ struct CameraPanelView: View {
         withAnimation(.easeOut(duration: 0.5)) { flash = 0 }
         let includeDate = store.settings.snapIncludesDate
         let mirror = store.settings.mirrorPreview
+        Self.snapInFlight = true
         Task { @MainActor in
+            defer { Self.snapInFlight = false }
             guard let frame = await camera.captureFrame() else {
                 showNote("Couldn't take the snap. Try again.")
                 return
@@ -218,7 +223,7 @@ struct CameraPanelView: View {
             Button { Task { await recorder.stop() } } label: {
                 HStack(spacing: 3) {
                     Image(systemName: "stop.circle.fill")
-                    if !camera.micAttached {
+                    if !camera.micAttached && !camera.micSettingUp {
                         Image(systemName: "mic.slash.fill")
                             .help("Recording without sound: no microphone is connected")
                             .accessibilityLabel("Recording without sound")

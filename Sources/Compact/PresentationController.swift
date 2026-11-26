@@ -43,6 +43,12 @@ final class PresentationController: NSObject, NSPopoverDelegate {
         isVisible ? closeOnPurpose() : show()
     }
 
+    /// Opens Compact attached to the menu bar icon (used on first launch).
+    func show(from button: NSStatusBarButton?) {
+        if button != nil { anchor = button }
+        show()
+    }
+
     func show() {
         guard !isVisible else { return }
         if store.settings.windowMode == .floating {
