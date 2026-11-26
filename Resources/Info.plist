@@ -2,17 +2,29 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleIdentifier</key><string>com.compact.app</string>
-    <key>CFBundleName</key><string>Compact</string>
-    <key>CFBundleDisplayName</key><string>Compact</string>
-    <key>CFBundleExecutable</key><string>Compact</string>
-    <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>1.0</string>
-    <key>CFBundleVersion</key><string>1</string>
-    <key>LSMinimumSystemVersion</key><string>14.0</string>
-    <key>CFBundleIconFile</key><string>AppIcon</string>
-    <key>LSUIElement</key><true/>
-    <key>NSCameraUsageDescription</key><string>Compact shows your camera so you can check yourself before a call.</string>
-    <key>NSMicrophoneUsageDescription</key><string>Compact uses the microphone for the mic check meter and to record vlogs.</string>
+	<key>CFBundleDisplayName</key>
+	<string>Compact</string>
+	<key>CFBundleExecutable</key>
+	<string>Compact</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.compact.app</string>
+	<key>CFBundleName</key>
+	<string>Compact</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>45</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Compact shows your camera so you can check yourself before a call.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Compact uses the microphone for the mic check meter and to record vlogs.</string>
 </dict>
 </plist>
