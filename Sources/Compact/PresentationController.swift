@@ -10,7 +10,6 @@ final class PresentationController: NSObject, NSPopoverDelegate {
     private var floating: FloatingWindowController!
     private weak var anchor: NSStatusBarButton?
     private var isRecording = false
-    private var hasUnsavedSnap = false
     private var outsideClickMonitors: [Any] = []
     var onVisibilityChange: ((Bool) -> Void)?
     /// Opens the Settings window; used by the ⚙︎ menu in the camera view.
@@ -69,18 +68,8 @@ final class PresentationController: NSObject, NSPopoverDelegate {
         isRecording = recording
     }
 
-    /// While a snap is unsaved, nothing closes Compact (closing would throw the snap away).
-    func setUnsavedSnap(_ unsaved: Bool) {
-        hasUnsavedSnap = unsaved
-    }
-
-    /// Menu bar icon, shortcut or ×: closes unless a snap is unsaved, in which case the snap
-    /// gives a little shake to show why.
+    /// Menu bar icon, shortcut or ×.
     func closeOnPurpose() {
-        guard deliberateCloseAllowed(hasUnsavedSnap: hasUnsavedSnap) else {
-            SnapPopoverController.shakeCurrent()
-            return
-        }
         hide()
     }
 
@@ -133,7 +122,7 @@ final class PresentationController: NSObject, NSPopoverDelegate {
     }
 
     private func closeForOutsideClick() {
-        guard outsideClickCloses(isRecording: isRecording, hasUnsavedSnap: hasUnsavedSnap), popover.isShown else { return }
+        guard outsideClickCloses(isRecording: isRecording), popover.isShown else { return }
         popover.performClose(nil)
     }
 }

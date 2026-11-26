@@ -35,17 +35,8 @@ struct CameraAccessTests {
 }
 
 @Suite struct PanelKeepOpenTests {
-    @Test func outsideClicksCloseOnlyWhenNothingIsInProgress() {
-        #expect(outsideClickCloses(isRecording: false, hasUnsavedSnap: false) == true)
-        #expect(outsideClickCloses(isRecording: true, hasUnsavedSnap: false) == false)
-        #expect(outsideClickCloses(isRecording: false, hasUnsavedSnap: true) == false)
-        #expect(outsideClickCloses(isRecording: true, hasUnsavedSnap: true) == false)
-    }
-
-    @Test func onlyAnUnsavedSnapBlocksDeliberateClosing() {
-        // The menu bar icon / hotkey / × still close during a recording (it keeps recording),
-        // but not while a snap is unsaved, since closing would throw the snap away.
-        #expect(deliberateCloseAllowed(hasUnsavedSnap: false) == true)
-        #expect(deliberateCloseAllowed(hasUnsavedSnap: true) == false)
+    @Test func outsideClicksCloseUnlessRecording() {
+        #expect(outsideClickCloses(isRecording: false) == true)
+        #expect(outsideClickCloses(isRecording: true) == false)
     }
 }

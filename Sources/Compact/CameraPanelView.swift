@@ -191,11 +191,7 @@ struct CameraPanelView: View {
     private func snap() {
         // No camera picture, no snap (and no flash pretending it worked).
         guard camera.access == .allowed else { NSSound.beep(); return }
-        // Finish with the snap that's showing first, so it isn't replaced and lost.
-        guard !SnapPopoverController.hasUnsavedSnap, !Self.snapInFlight else {
-            SnapPopoverController.shakeCurrent()
-            return
-        }
+        guard !Self.snapInFlight else { return }   // one snap at a time
         if store.settings.snapShutterSound {
             Self.shutterSound?.stop()   // restart if a previous click is still playing
             Self.shutterSound?.play()

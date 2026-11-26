@@ -19,10 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var settingsWindow = SettingsWindowController { [unowned self] in
         SettingsView(store: store, camera: camera, recorder: recorder, hotkey: hotkey,
                      onIconChanged: { [weak self] in self?.statusItem?.refreshIcon() },
-                     onWindowModeChanged: { [weak self] in
-                         // An unsaved snap keeps the current view open; the new style applies next time.
-                         if !SnapPopoverController.hasUnsavedSnap { self?.presentation.hide() }
-                     })
+                     onWindowModeChanged: { [weak self] in self?.presentation.hide() })
     }
     private var panelVisible = false
     private var cameraRunning = false
@@ -78,7 +75,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Camera problems are left alone during a recording; deal with them once it's over.
             if !state.isActive, self?.recorder.isFinishingLate == false { self?.camera.recoverIfNeeded() }
         }
-        SnapPopoverController.onUnsavedChange = { [weak self] in self?.presentation.setUnsavedSnap($0) }
         camera.onAccessGrantedAfterPanelClosed = { [weak self] in self?.presentation.show() }
         observeScreenAvailability()
         requestPermissionsUpFront()
