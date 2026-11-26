@@ -13,6 +13,8 @@ final class PresentationController: NSObject, NSPopoverDelegate {
     private var hasUnsavedSnap = false
     private var outsideClickMonitors: [Any] = []
     var onVisibilityChange: ((Bool) -> Void)?
+    /// Opens the Settings window; used by the ⚙︎ menu in the camera view.
+    var onOpenSettings: (() -> Void)?
 
     var isVisible: Bool { popover.isShown || floating.isVisible }
 
@@ -24,12 +26,13 @@ final class PresentationController: NSObject, NSPopoverDelegate {
         popover.behavior = .applicationDefined
         popover.contentSize = NSSize(width: 384, height: 216)
         popover.contentViewController = NSHostingController(
-            rootView: CameraPanelView(camera: camera, recorder: recorder, store: store))
+            rootView: CameraPanelView(camera: camera, recorder: recorder, store: store,
+                                      onOpenSettings: { [weak self] in self?.onOpenSettings?() }))
         popover.delegate = self
 
         let host = NSHostingView(rootView: CameraPanelView(camera: camera, recorder: recorder, store: store, onClose: { [weak self] in
             self?.closeOnPurpose()
-        }))
+        }, onOpenSettings: { [weak self] in self?.onOpenSettings?() }))
         host.sizingOptions = []
         host.layer?.backgroundColor = .clear
         floating = FloatingWindowController(store: store, content: host)

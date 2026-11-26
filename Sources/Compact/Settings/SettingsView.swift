@@ -72,6 +72,10 @@ struct SettingsView: View {
                     Text("Popover").tag(WindowMode.popover)
                     Text("Floating window").tag(WindowMode.floating)
                 }
+                if store.settings.windowMode == .popover {
+                    Text("Shape, size and position apply to the floating window.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else {
                 Picker("Shape", selection: binding(\.shape)) {
                     ForEach(WindowShape.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
                 }
@@ -80,6 +84,7 @@ struct SettingsView: View {
                 }
                 Picker("Position", selection: binding(\.position)) {
                     ForEach(WindowPosition.allCases, id: \.self) { Text(Self.positionName($0)).tag($0) }
+                }
                 }
             }
             Section("Notch") {

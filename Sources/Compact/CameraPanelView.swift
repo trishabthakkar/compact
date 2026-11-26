@@ -8,6 +8,11 @@ struct CameraPanelView: View {
     let store: SettingsStore
     /// Non-nil when hosted in the floating window: controls become a hover overlay and a close button appears.
     var onClose: (() -> Void)? = nil
+    /// Opens the Settings window (from the ⚙︎ menu).
+    var onOpenSettings: () -> Void = {}
+    /// Set once the first-launch hint has been shown.
+    @AppStorage("compact.welcomeShown") private var welcomeShown = false
+    @State private var showWelcome = false
     @State private var hovering = false
     /// The camera view's AppKit view, used to attach the snap pop-up just below it.
     @State private var anchor: NSView?
@@ -19,9 +24,26 @@ struct CameraPanelView: View {
             if onClose != nil { floatingBody } else { popoverBody }
         }
         .background(ViewAnchor { anchor = $0 })
+        .overlay(alignment: .top) {
+            if showWelcome {
+                Text("Compact lives up here in your menu bar. Use ⚙︎ for settings.")
+                    .font(.caption).foregroundStyle(.white)
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(.black.opacity(0.7), in: Capsule())
+                    .padding(.top, 8)
+                    .transition(.opacity)
+            }
+        }
+        .onAppear {
+            guard !welcomeShown else { return }
+            welcomeShown = true
+            withAnimation { showWelcome = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6) { withAnimation { showWelcome = false } }
+        }
     }
 
     private var floatingBody: some View {
+        let showControls = hovering || recorder.state.isActive   // stop button stays visible while recording
         let shape = store.settings.shape
         let size = contentSize(size: store.settings.size, shape: shape)
         let radius = CompactCore.cornerRadius(shape: shape, in: size)
@@ -29,7 +51,7 @@ struct CameraPanelView: View {
         return preview(width: size.width, height: size.height, meterBottomInset: round ? size.height * 0.25 + 40 : 0,
                        meterSideInset: round ? radius * 0.5 : 0)
             .overlay(alignment: .bottom) {
-                if hovering {
+                if showControls {
                     if round {
                         controlsBar(compact: true)
                             .padding(.horizontal, 12)
@@ -51,6 +73,7 @@ struct CameraPanelView: View {
                     .buttonStyle(.plain)
                     .padding(round ? radius * 0.3 : 8)
                     .help("Close")
+                    .accessibilityLabel("Close")
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
@@ -169,15 +192,35 @@ struct CameraPanelView: View {
                 .foregroundStyle(.red)
             }
             .help("Stop recording")
+            .accessibilityLabel("Stop recording")
         } else {
             Button { recorder.start() } label: { Image(systemName: "record.circle") }
                 .disabled(recorder.state == .stopping || camera.access != .allowed)
                 .help("Record a vlog")
+                .accessibilityLabel("Record a vlog")
         }
     }
 
-    private func openVlogFolder() {
-        let folder = MediaLocation.folder(for: .vlog, home: FileManager.default.homeDirectoryForCurrentUser)
+    /// ⚙︎ menu: Settings, the save folders and Quit, so nothing depends on finding the right-click menu.
+    private var moreMenu: some View {
+        Menu {
+            Button("Settings…", action: onOpenSettings)
+            Button("Open Snaps Folder") { openFolder(.snap) }
+            Button("Open Vlogs Folder") { openFolder(.vlog) }
+            Divider()
+            Button("Quit Compact") { NSApp.terminate(nil) }
+        } label: {
+            Image(systemName: "gearshape")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Settings and more")
+        .accessibilityLabel("Settings and more")
+    }
+
+    private func openFolder(_ kind: MediaKind) {
+        let folder = MediaLocation.folder(for: kind, home: FileManager.default.homeDirectoryForCurrentUser)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         NSWorkspace.shared.open(folder)
     }
@@ -191,14 +234,13 @@ struct CameraPanelView: View {
                 Image(systemName: camera.micMeterOn ? "mic.fill" : "mic")
             }
             .help("Mic check")
+            .accessibilityLabel(camera.micMeterOn ? "Turn off mic check" : "Turn on mic check")
             Button { snap() } label: { Image(systemName: "camera.shutter.button") }
                 .help("Snap (Space)")
+                .accessibilityLabel("Take a snap")
             recordButton(compact: compact)
             if !compact { Spacer() }
-            if !compact {   // the round-shape cluster is ~90pt wide; folder lives in the popover/rect bar
-                Button { openVlogFolder() } label: { Image(systemName: "folder") }
-                    .help("Open vlog folder")
-            }
+            moreMenu
         }
         .buttonStyle(.borderless)
         .padding(.horizontal, 10)

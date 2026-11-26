@@ -53,6 +53,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
                 _ = await AVCaptureDevice.requestAccess(for: .audio)
             }
+            // First launch: open Compact once so new users see where it lives.
+            if !UserDefaults.standard.bool(forKey: "compact.welcomeShown") {
+                self.presentation.toggle(relativeTo: self.statusItem?.button)
+            }
         }
     }
 
@@ -75,6 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.presentation.toggle(relativeTo: self.statusItem?.button)
         }
         statusItem?.onOpenSettings = { [weak self] in self?.settingsWindow.show() }
+        presentation.onOpenSettings = { [weak self] in self?.settingsWindow.show() }
         applyHotkey()
         observeHotkey()
         notch.update(enabled: store.settings.notchTriggerEnabled)
