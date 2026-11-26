@@ -6,24 +6,26 @@ Made for macOS 14 (Sonoma) or newer.
 
 ## Install (for friends)
 
-1. Unzip `Compact.zip`.
-2. Open the **Compact** folder and drag **`Compact.app`** (the app with the mirror icon) into your **Applications** folder.
+Open the **Terminal** app, paste this, and press Return:
+
+```
+curl -fsSL https://github.com/trishabthakkar/compact/releases/latest/download/install.sh | sh
+```
+
+That's it: Compact installs into Applications and opens. Look for the lipstick in your menu bar (top right), and click **Allow** when your Mac asks for the camera and microphone. Run the same line again any time to update.
+
+### Installing from the zip instead
+
+1. Download `Compact.zip` from the [latest release](https://github.com/trishabthakkar/compact/releases/latest) and unzip it.
+2. Open the **Compact** folder and drag **`Compact.app`** into your **Applications** folder.
 3. Open Compact once. macOS will say it can't verify the app, because it isn't from the App Store. Click **Done**.
-4. Open **System Settings → Privacy & Security**, scroll down to the message about Compact, and click **Open Anyway**. Enter your Mac password if asked, then click **Open Anyway** once more.
-   (On macOS 14 and older you can instead right-click Compact, choose **Open**, then click **Open**. macOS 15 and newer removed that shortcut.)
-5. Allow **camera** and **microphone** access when your Mac asks.
+4. Open **System Settings → Privacy & Security**, scroll down to the message about Compact, and click **Open Anyway**.
+   (On macOS 14 you can instead right-click Compact, choose **Open**, then click **Open**.)
+5. If macOS says the app is "damaged", paste this into Terminal, then open Compact again:
 
-Compact appears as an icon in the menu bar at the top of the screen. Click it to see yourself.
-
-### If "Open Anyway" doesn't appear, or macOS says the app is "damaged"
-
-It isn't. macOS is just being cautious about apps from outside the App Store. Open the Terminal app, paste this, and press Return:
-
-```
-xattr -cr /Applications/Compact.app
-```
-
-Then open Compact again.
+   ```
+   xattr -dr com.apple.quarantine /Applications/Compact.app
+   ```
 
 ## What it does
 
@@ -43,3 +45,14 @@ swift test              # run the tests
 scripts/build-app.sh    # makes build/Compact.app
 scripts/package-zip.sh  # makes build/Compact.zip to share
 ```
+
+## Publishing a new version
+
+Commit your changes, then run (needs the GitHub CLI: `brew install gh && gh auth login`):
+
+```
+scripts/release.sh 1.1
+```
+
+This builds the app, creates a GitHub Release with `Compact.zip` and `install.sh`, and the install line above starts serving the new version.
+
